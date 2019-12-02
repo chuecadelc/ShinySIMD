@@ -416,7 +416,7 @@ server <- function(input, output, session) {
                   fillOpacity = 1.5,  
                   color = "lightblue",    
                   weight = 2,
-
+                  #this is when you hover over with the mouse so you can see underneath the main color.
                    highlight = highlightOptions(
                                 weight = 5,
                                 color = "#666",
