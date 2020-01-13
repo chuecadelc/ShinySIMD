@@ -21,11 +21,11 @@ library(magrittr)
 library(rgdal)
 
 #####FOR THE DATASET######
-data <-read.csv("data(brian).csv") #the names are not the same as in the GEOJSON file
+data <-read.csv("data_simd.csv") #the names are not the same as in the GEOJSON file
 
 data2<-data[complete.cases(data),]
 
-dataGlas <- read.csv("data(brian)Gla.csv")
+dataGlas <- read.csv("data_simdGla.csv")
 dataGlas$Population <- dataGlas$ï..Population
 
 ColAttr <- function(x, attrC, ifIsNull) {
