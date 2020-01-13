@@ -19,33 +19,14 @@ library(plyr)
 library(dplyr)
 library(magrittr)
 library(rgdal)
-library(mapview)
-library(htmltools)
-library(htmlwidgets)
-library(maptools)
-
 
 #####FOR THE DATASET######
-data <-read.csv("data_simd.csv")
-
-data$Population <- as.numeric(as.character(data$Population))
-data$Working_Population <- as.numeric(as.character(data$Working_Population))
-data$School_Attendance <- as.numeric(as.character(data$School_Attendance))
-data$Alcohol <- as.numeric(as.character(data$Alcohol))
-data$Income_Deprived <- as.numeric(as.character(data$Income_Deprived))
-data$Employment_Deprived <- as.numeric(as.character(data$Employment_Deprived))
-data$Illness <- as.numeric(as.character(data$Illness))
-data$Mortality <- as.numeric(as.character(data$Mortality))
-data$Drugs <- as.numeric(as.character(data$Drugs))
-data$Depress <- as.numeric(as.character(data$Depress))
-data$lowBW <- as.numeric(as.character(data$lowBW))
-data$HospEmer <- as.numeric(as.character(data$HospEmer))
-data$NoQuals <- as.numeric(as.character(data$NoQuals))
-data$Crime <- as.numeric(as.character(data$Crime))
-data$No_heating <- as.numeric(as.character(data$No_heating))
-data$Glasgow<- as.numeric(data$Glasgow)
+data <-read.csv("data(brian).csv") #the names are not the same as in the GEOJSON file
 
 data2<-data[complete.cases(data),]
+
+dataGlas <- read.csv("data(brian)Gla.csv")
+dataGlas$Population <- dataGlas$ï..Population
 
 ColAttr <- function(x, attrC, ifIsNull) {
   # Returns column attribute named in attrC, if present, else isNullC.
@@ -59,40 +40,8 @@ AtribLst <- function(df, attrC, isNullC){
 }
 variables <- AtribLst(data, attrC="labels", isNullC=NA)
 
-countriesGlaX <- readOGR("SG_SIMD_2016_1.geojson", "SG_SIMD_2016_1", stringsAsFactors = F)
-countriesGla <- countriesGlaX[countriesGlaX$Council_ar=="Glasgow City", ]
-
-countriesGla$Council_ar <- NULL
-countriesGla$LAName <- NULL
-
-countriesGla$Shape_Leng <- NULL
-countriesGla$Shape_Area <-NULL
-
-countriesGlaX1 <- countriesGla
-
-countriesGlaX1$DataZone <- NULL
-
-
-
-countriesGlaX1@data[complete.cases(countriesGlaX1@data),] 
-
-countriesGlaX1$Population <- as.numeric(as.character(countriesGlaX1$Population))
-countriesGlaX1$Working_Po <- as.numeric(as.character(countriesGlaX1$Working_Po))
-countriesGlaX1$School_Att <- as.numeric(as.character(countriesGlaX1$School_Att))
-countriesGlaX1$Alcohol <- as.numeric(as.character(countriesGlaX1$Alcohol))
-countriesGlaX1$Income_Dep <- as.numeric(as.character(countriesGlaX1$Income_Dep))
-countriesGlaX1$Employment <- as.numeric(as.character(countriesGlaX1$Employment))
-countriesGlaX1$Illness <- as.numeric(as.character(countriesGlaX1$Illness))
-countriesGlaX1$Mortality <- as.numeric(as.character(countriesGlaX1$Mortality))
-countriesGlaX1$Drugs <- as.numeric(as.character(countriesGlaX1$Drugs))
-countriesGlaX1$Depress <- as.numeric(as.character(countriesGlaX1$Depress))
-countriesGlaX1$lowBW <- as.numeric(as.character(countriesGlaX1$lowBW))
-countriesGlaX1$HospEmer <- as.numeric(as.character(countriesGlaX1$HospEmer))
-countriesGlaX1$NoQuals <- as.numeric(as.character(countriesGlaX1$NoQuals))
-countriesGlaX1$Crime <- as.numeric(as.character(countriesGlaX1$Crime))
-countriesGlaX1$No_heating <- as.numeric(as.character(countriesGlaX1$No_heating))
-
-
+countriesGla <- readOGR("json/SG_SIMD_2016_3.geojson", "SG_SIMD_2016_2", stringsAsFactors = F)
+na.omit(countriesGla)
 
 #######SHINY APP CODE BELOW#####
 
@@ -104,8 +53,8 @@ ui <- #website design
                 # Application title
                 #headerPanel("Scottish Index of Multiple Deprivation"),
                 #br(),
-                dashboardSidebar(width = 300,
-                                 sidebarMenu(
+                dashboardSidebar(width = 400,
+                                 sidebarMenu(style = "font-size:20px",
                                    menuItem("Information", tabName = "Info"),
                                    menuItem("Summary Statistics and Distributions", tabName = "Stats"),
                                    menuItem("Comparison of Variables", tabName = "Comparison"),
@@ -130,30 +79,31 @@ ui <- #website design
                                     @import url('https://fonts.googleapis.com/css?family=Neucha|Cabin+Sketch');
                                     .selectize-input {
                                     font-family: 'Times New Roman', Times, serif;
-                                    font-size: 22px;
+                                    font-size: 32px;
                                     color: #212539;
                                     }
                                     
                                     "))
                     
                     
-                  ),
+                    ),
                   
                   tabItems(
                     tabItem(tabName = "Info",
                             tags$img(src = "qstep2.png", height = 110, width = 220), 
-                            tags$img(src = "university.png", height = 110, width = 250),
+                            tags$img(src = "university.png.png", height = 110, width = 250),
                             br(),
                             br(),
+                            
                             p("This app will be using the Scottish Index of Multiple Deprivation to showcase measures of central tendency, statistical tests such as correlation.
-                              In terms of visualisations it haves scatterplots, histograms, and an interactive map of Glasgow."),
+                              In terms of visualisations it haves scatterplots, histograms, and an interactive map of Glasgow.",style = "font-size:32px"),
                             br(),
-                            p("The aim of this app is to explain the different relationships between the variables in such index, obtained from the Scottish Government Data Center."),
+                            p("The aim of this app is to explain the different relationships between the variables in such index, obtained from the Scottish Government Data Center.",style = "font-size:32px"),
                             br(),
                             p("Developed by Cristina Chueca, Q-Step Graduate of the University of Glasgow 2018, 
-                              in collaboration with Dr. Brian Fogarty and Dr. Niccole Pamphilis."),
+                              in collaboration with Dr. Brian Fogarty and Dr. Niccole Pamphilis.",style = "font-size:32px"),
                             br()
-                    ),
+                            ),
                     #tabsetPanel(
                     
                     tabItem(tabName = "Stats", 
@@ -164,7 +114,7 @@ ui <- #website design
                                   sidebarPanel(selectInput("cov3", "Variables:", choices = names(data2), selected = "Population"),width = 11)),
                               
                               box(width = 2, selectInput(inputId = "bincolor",
-                                                         label = "Select a Colour",
+                                                         label = "Select a Color",
                                                          choices = colors(),
                                                          selected = "grey"),
                                   
@@ -182,7 +132,7 @@ ui <- #website design
                             fluidRow(
                               box(width= 5,
                                   verbatimTextOutput("table"),verbatimTextOutput("table1")), 
-                              box(width=7,plotOutput("distPlot",height = 450, width = 600)))
+                              box(width=7,plotOutput("distPlot",height = 550, width = 800)))
                             
                             #)#)
                     ),
@@ -199,7 +149,7 @@ ui <- #website design
                                                 value = FALSE)),
                               
                               box(selectInput(inputId = "bincolor1",
-                                              label = "Colour of line",
+                                              label = "Color",
                                               choices = colors(),
                                               selected = "grey"),
                                   
@@ -209,7 +159,7 @@ ui <- #website design
                               
                               
                               box(width= 7,
-                                  mainPanel(title = "Scatterplot", status = "primary",solidHeader = TRUE, plotOutput("compPlot", height = 500, width = 650)))
+                                  mainPanel(title = "Scatterplot", status = "primary",solidHeader = TRUE, plotOutput("compPlot", height = 550, width = 800)))
                               
                               
                             )
@@ -226,16 +176,16 @@ ui <- #website design
                                       
                                       sidebarPanel(
                                         selectInput("cov4", "Variables:", choices = names(data2)), selected = "Population",
-                                        
-                                        
-                                        selectInput("colors", "Color Scheme",
-                                                    rownames(subset(brewer.pal.info, category %in% c("seq", "div"))))),          
                                       
-                                      leafletOutput("my_map", width = "100%", height = 600))
+                                      
+                                        selectInput("colors", "Color Scheme",
+                                                   rownames(subset(brewer.pal.info, category %in% c("seq", "div"))))),          
+                                
+                                        leafletOutput("my_map", width = "100%", height = 600))
                             
-                    )
-                  ))
-  )
+                            )
+                    ))
+)
 
 ##### SERVER CODE FOR THE APP####
 
@@ -311,31 +261,28 @@ server <- function(input, output, session) {
   #####SCATTERPLOT OUTPUT CODE###
   
   output$compPlot<-renderPlot({
-    data2$Glasgow2 <- mapvalues(data2$Glasgow, from = c("0", "1"),
-                                to = c("0. Not Glasgow Council", "1. Glasgow Council"))
-    
     
     if (input$gla == "TRUE" && input$addcor == "TRUE") 
-      
-    { 
-      ggplot(data2, aes_string(x = input$cov1, y = input$cov2)) +
-        geom_point(alpha=1/5,position="jitter",size=3, aes(colour=Glasgow2)) +
-        geom_smooth(method="lm",se=FALSE, colour = input$bincolor1) +
+     
+      { 
+      ggplot(dataGlas, aes_string(x = input$cov1, y = input$cov2)) +
+        geom_point(alpha=1/5,position="jitter",size=3,colour = input$bincolor1) +
+        geom_smooth(method="lm",se=FALSE,color = "black") +
         ggtitle("Scatterplot") +
-        stat_cor(method = "pearson", label.x.npc = 0.81, label.y.npc = "top", size=6) +
+        stat_cor(method = "pearson", label.x.npc = 0.71, label.y.npc = "top", size=6) +
         scale_y_continuous(limits=c(0,max(data2[,input$cov2]))) +
         theme(axis.text=element_text(size=12, face = "bold"),axis.title=element_text(size=14,face="bold")) +
         theme(plot.title = element_text(size=22))
-    }
-    
+      }
+   
     else if  (input$addcor == "TRUE" && input$gla == "FALSE") 
       
-    { 
-      ggplot(data2, aes_string(x = input$cov1, y = input$cov2)) +
-        geom_point(alpha=1/5,position="jitter",size=3) +
-        geom_smooth(method="lm",se=FALSE, colour = input$bincolor1) +
+      { 
+        ggplot(data2, aes_string(x = input$cov1, y = input$cov2)) +
+        geom_point(alpha=1/5,position="jitter",size=3,colour = input$bincolor1) +
+        geom_smooth(method="lm",se=FALSE,color = "black") +
         ggtitle("Scatterplot") +
-        stat_cor(method = "pearson", label.x.npc = 0.81, label.y.npc = "top", size=6) +
+        stat_cor(method = "pearson", label.x.npc = 0.71, label.y.npc = "top", size=6) +
         scale_y_continuous(limits=c(0,max(data2[,input$cov2]))) +
         theme(axis.text=element_text(size=12, face = "bold"),axis.title=element_text(size=14,face="bold")) +
         theme(plot.title = element_text(size=22)) 
@@ -344,104 +291,110 @@ server <- function(input, output, session) {
     
     else if (input$gla == "TRUE" && input$addcor == "FALSE") 
       
-    { 
-      ggplot(data2, aes_string(x = input$cov1, y = input$cov2)) +
-        geom_point(alpha=1/5,position="jitter",size=4, aes(colour=Glasgow2)) +
-        geom_smooth(method="lm",se=FALSE, colour = input$bincolor1) +
-        ggtitle("Scatterplot") +
-        #stat_cor(method = "pearson", label.x.npc = 0.81, label.y.npc = "top", size=6) +
-        scale_y_continuous(limits=c(0,max(data2[,input$cov2]))) +
-        theme(axis.text=element_text(size=12, face = "bold"),axis.title=element_text(size=14,face="bold")) +
-        theme(plot.title = element_text(size=22)) 
-    }
-    
-    
-    
-    else if (input$gla == "FALSE" && input$addcor == "FALSE") 
+      { 
       
-    {
-      ggplot(data2, aes_string(x = input$cov1, y = input$cov2)) +
-        geom_point(alpha=1/5,position="jitter",size=3) +
-        geom_smooth(method="lm",se=FALSE, colour = input$bincolor1) +
+      ggplot(dataGlas, aes_string(x = input$cov1, y = input$cov2)) +
+        geom_point(alpha=1/5,position="jitter",size=3, colour = input$bincolor1) +
+        geom_smooth(method="lm",se=FALSE, color = "black") +
         ggtitle("Scatterplot") +
         scale_y_continuous(limits=c(0,max(data2[,input$cov2]))) +
         theme(axis.text=element_text(size=12, face = "bold"),axis.title=element_text(size=14,face="bold")) +
         theme(plot.title = element_text(size=22))
-    }
+      }
+      
     
+ 
+    else if (input$gla == "FALSE" && input$addcor == "FALSE") 
+    
+    {
+      ggplot(data2, aes_string(x = input$cov1, y = input$cov2)) +
+      geom_point(alpha=1/5,position="jitter",size=3,colour = input$bincolor1) +
+      geom_smooth(method="lm",se=FALSE,color = "black") +
+      ggtitle("Scatterplot") +
+      scale_y_continuous(limits=c(0,max(data2[,input$cov2]))) +
+      theme(axis.text=element_text(size=12, face = "bold"),axis.title=element_text(size=14,face="bold")) +
+      theme(plot.title = element_text(size=22))
+    }
+ 
     
   })
+ 
   
-  ######MAP CODE
-  
-  output$my_map <- renderLeaflet({
-    
-    if(input$cov4=="Population"){x <- countriesGlaX1$Population}
-    if(input$cov4=="Working_Population"){x <- countriesGlaX1$Working_Po}
-    if(input$cov4=="School_Attendance"){x <- countriesGlaX1$School_Att}
-    if(input$cov4=="Alcohol"){x <- countriesGlaX1$Alcohol}
-    if(input$cov4=="Income_Deprived"){x <- countriesGlaX1$Income_Dep}
-    if(input$cov4=="Employment_Deprived"){x <- countriesGlaX1$Employment}
-    if(input$cov4=="Illness"){x <- countriesGlaX1$Illness}
-    if(input$cov4=="Mortality"){x <- countriesGlaX1$Mortality}
-    if(input$cov4=="Drugs"){x <- countriesGlaX1$Drugs}
-    if(input$cov4=="Depress"){x <- countriesGlaX1$Depress}
-    if(input$cov4=="lowBW"){x <- countriesGlaX1$lowBW}
-    if(input$cov4=="HospEmer"){x <- countriesGlaX1$HospEmer}
-    if(input$cov4=="NoQuals"){x <- countriesGlaX1$NoQuals}
-    if(input$cov4=="Crime"){x <- countriesGlaX1$Crime}
-    if(input$cov4=="No_heating"){x <- countriesGlaX1$No_heating}
-    
-    colorpal <- reactive({
-      colorNumeric(input$colors,x)
-    })
-    
-    labels <- countriesGla$DataZone
-    
-    
-    pal <- colorpal()
-    # palette1 <- colorNumeric("Spectral",
-    #                          domain = countriesGla,input$cov4)
-    
-    
-    leaflet(countriesGlaX1)%>%
-      addProviderTiles("Esri.WorldGrayCanvas", 
-                       options = tileOptions(minZoom=6, maxZoom=16)) %>% #"freeze" the mapwindow to max and min zoomlevel
-      addProviderTiles("Stamen.Toner", group = "Toner") %>%
-      addProviderTiles("Esri.WorldImagery", group = "Toner Lite") %>%
-      addProviderTiles("CartoDB.Positron", group = "CartoDB") %>%
-    
-      addPolygons(smoothFactor = 0.5, 
-                  fillColor = ~pal(x),  
-                  fillOpacity = 1.5,  
-                  color = "lightblue",    
-                  weight = 2,
-                  #this is when you hover over with the mouse so you can see underneath the main color.
-                   highlight = highlightOptions(
-                                weight = 5,
-                                color = "#666",
-                                fillOpacity = 0.5,
-                                bringToFront = FALSE),            
-                  
-                  label = labels,
-                  labelOptions = labelOptions(
-                    style = list("font-weight" = "normal", padding = "3px 8px"),
-                    textOnly = TRUE,
-                    textsize = "15px",
-                    direction = "auto")) %>%
-      
-      
-      addLegend("bottomright", pal = pal, values = ~x,
-                title = "Density Levels",
-                labFormat = labelFormat(suffix = " "),
-                opacity = 0.75)%>%
-      
-      
-      addLayersControl(baseGroups = c("Toner Lite", "CartoDB","Toner", "hex"))
-    
-    
-  })  
   #
+
+
+#One improvement would be to be able to translate the datazones into groups like Maryhill, Southside, City Centre 
+#adding an extra layer instead all together it separates by location. I´ll see if that could be done. 
+#first get a glasgow city council map. I could do it through Wards or districts. Perhaps I could have a button to choose?
+
+
+output$my_map <- renderLeaflet({
+  
+  if(input$cov4=="Population"){x <- countriesGla$Population}
+  if(input$cov4=="Working_Population"){x <- countriesGla$Working_Po}
+  if(input$cov4=="School_Attendance"){x <- countriesGla$School_Att}
+  if(input$cov4=="Alcohol"){x <- countriesGla$Alcohol}
+  if(input$cov4=="Income_Deprived"){x <- countriesGla$Income_Dep}
+  if(input$cov4=="Employment_Deprived"){x <- countriesGla$Employment}
+  if(input$cov4=="Illness"){x <- countriesGla$Illness}
+  if(input$cov4=="Mortality"){x <- countriesGla$Mortality}
+  if(input$cov4=="Drugs"){x <- countriesGla$Drugs}
+  if(input$cov4=="Depress"){x <- countriesGla$Depress}
+  if(input$cov4=="lowBW"){x <- countriesGla$lowBW}
+  if(input$cov4=="HospEmer"){x <- countriesGla$HospEmer}
+  if(input$cov4=="NoQuals"){x <- countriesGla$NoQuals}
+  if(input$cov4=="Crime"){x <- countriesGla$Crime}
+  if(input$cov4=="No_heating"){x <- countriesGla$No_heating}
+  
+  colorpal <- reactive({
+    colorNumeric(input$colors,x)
+  })
+  
+  labels <- countriesGla$DataZone
+  
+  
+  pal <- colorpal()
+  # palette1 <- colorNumeric("Spectral",
+  #                          domain = countriesGla,input$cov4)
+  
+  
+  leaflet(countriesGla)%>%
+    addProviderTiles("Esri.WorldGrayCanvas", 
+                     options = tileOptions(minZoom=6, maxZoom=16)) %>% #"freeze" the mapwindow to max and min zoomlevel
+    addProviderTiles("Stamen.Toner", group = "Toner") %>%
+    addProviderTiles("Esri.WorldImagery", group = "Toner Lite") %>%
+    addProviderTiles("CartoDB.Positron", group = "CartoDB") %>%
+    
+    addPolygons(smoothFactor = 0.2, 
+                fillColor = ~pal(x),  
+                fillOpacity = 0.8,  
+                color = "lightblue",    
+                weight = 1.5,
+                highlight = highlightOptions(
+                  weight = 5,
+                  color = "#666",
+                  fillOpacity = 0,
+                  bringToFront = FALSE),
+                
+                label = labels,
+                labelOptions = labelOptions(
+                  style = list("font-weight" = "normal", padding = "3px 8px"),
+                  textOnly = TRUE,
+                  textsize = "15px",
+                  direction = "auto")) %>%
+    
+    
+    addLegend("bottomright", pal = pal, values = ~x,
+              title = "Density Levels",
+              labFormat = labelFormat(suffix = " "),
+              opacity = 0.75)%>%
+    
+    addLayersControl(baseGroups = c("Toner Lite", "CartoDB","Toner", "hex"))
+  
+  
+})
+
+
 }
 
 # Run the application and enjoy!
