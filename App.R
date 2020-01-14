@@ -142,7 +142,7 @@ ui <- #website design
                   tabItems(
                     tabItem(tabName = "Info",
                             tags$img(src = "qstep2.png", height = 110, width = 220), 
-                            tags$img(src = "university.png", height = 110, width = 250),
+                            tags$img(src = "university.png.png", height = 110, width = 250),
                             br(),
                             br(),
                             p("This app will be using the Scottish Index of Multiple Deprivation to showcase measures of central tendency, statistical tests such as correlation.
@@ -322,7 +322,7 @@ server <- function(input, output, session) {
         geom_point(alpha=1/5,position="jitter",size=3, aes(colour=Glasgow2)) +
         geom_smooth(method="lm",se=FALSE, colour = input$bincolor1) +
         ggtitle("Scatterplot") +
-        stat_cor(method = "pearson", label.x.npc = 0.81, label.y.npc = "top", size=6) +
+        stat_cor(method = "pearson", label.x.npc = 0.51, label.y.npc = "top", size=6) +
         scale_y_continuous(limits=c(0,max(data2[,input$cov2]))) +
         theme(axis.text=element_text(size=12, face = "bold"),axis.title=element_text(size=14,face="bold")) +
         theme(plot.title = element_text(size=22))
@@ -335,7 +335,7 @@ server <- function(input, output, session) {
         geom_point(alpha=1/5,position="jitter",size=3) +
         geom_smooth(method="lm",se=FALSE, colour = input$bincolor1) +
         ggtitle("Scatterplot") +
-        stat_cor(method = "pearson", label.x.npc = 0.81, label.y.npc = "top", size=6) +
+        stat_cor(method = "pearson", label.x.npc = 0.51, label.y.npc = "top", size=6) +
         scale_y_continuous(limits=c(0,max(data2[,input$cov2]))) +
         theme(axis.text=element_text(size=12, face = "bold"),axis.title=element_text(size=14,face="bold")) +
         theme(plot.title = element_text(size=22)) 
