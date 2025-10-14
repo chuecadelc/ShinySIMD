@@ -60,7 +60,12 @@ data_2016 <- data_2016 %>%
               Housing_Domain_2016_Rank,
               overcrowded_rate,
               nocentralheat_rate)) %>% 
-  rename(Working_Age_population = Working_age_population_Revised)
+  rename(Working_Age_population = Working_age_population_Revised) %>% 
+  na.omit() %>% 
+  mutate(Attainment =  case_when(
+    Attainment == "*" ~ NA,
+    TRUE ~ Attainment), Attainment = as.numeric(Attainment)) %>% 
+  mutate_if(is.character,as.factor)
 
 
 ## using the 2016 one as the 2020 one is the same
@@ -110,7 +115,24 @@ data_2020 <- data_2020 %>%
          NEET = not_participating, 
          nocentralheat_count = nocentralheating_count,
          drive_PO = drive_post,  
-         PT_Post = PT_post )
+         PT_Post = PT_post ) %>% 
+  na.omit() %>% 
+  ## will try mutate_if where a variable has * instead of individ later
+  mutate(Attainment =  case_when(
+    Attainment == "*" ~ NA,
+    TRUE ~ Attainment), Attainment = as.numeric(Attainment),
+    Attendance =  case_when(
+    Attendance == "*" ~ NA,
+      TRUE ~ Attendance), Attendance = as.numeric(Attendance),
+    crime_count =  case_when(
+      crime_count == "*" ~ NA,
+      TRUE ~ crime_count), crime_count = as.numeric(crime_count),
+    crime_rate =  case_when(
+      crime_rate == "*" ~ NA,
+      TRUE ~ crime_rate), crime_rate = as.numeric(crime_rate)
+    ) %>% 
+  mutate_if(is.character,as.factor)
+
 
 
 
@@ -151,13 +173,11 @@ var_names_combined <- bind_rows(data_vars, data_vars1) %>%
   distinct(Column, .keep_all = TRUE)
 
 
-
+# local authority areas (established 1996)
 Scotland_local_auth2016 <- read_sf("SG_SIMD_2016_1.geojson", "SG_SIMD_2016_1", stringsAsFactors = F)
-# na.omit(Glasgow_map)
 
-# importing latest version of local authorities for 2016 & 2020 map
-uk_local_authority2016 <- st_read("LAD/2016/Local_Authority_Districts_December_2016_FCB_in_the_UK.shp")
-uk_local_authority2020 <- st_read("LAD/2020/LAD_DEC_2020_UK_BFE.shp")
+Scotland_local_auth2016 <- Scotland_local_auth2016 %>% 
+  dplyr::select(Data_Zone = DataZone,LAName,Shape_Leng,Shape_Area)
 
 
 
@@ -261,17 +281,33 @@ ui <- navbarPage(
            ))),
   
     tabPanel("Variable Relationship Exploration",
-             fluidPage(fluidRow(
+           fluidPage(# shinyFeedback::useShinyFeedback(),
+             fluidRow(
                column(
-                 5,
-                 selectInput("cov1", "X-Axis", choices = names(data_2016)),
-                 selectInput("cov2", "Y-Axis", choices = names(data_2016)),
-                 verbatimTextOutput("Explanation1"),
-                 verbatimTextOutput("Explanation2"),
-                 checkboxInput("gla", "What about only in Glasgow?", FALSE)
-               ),
-               column(
-                 3,
+                 4,
+                 radioButtons(
+                   "dataset1",
+                   "Choose SIMD Dataset:",
+                   choices = c("2016" = "data_2016", "2020" =
+                                 "data_2020"),
+                   selected = "data_2016",
+                   inline = TRUE
+                 ),
+                 
+                 selectInput("covariate1", "X-Axis", choices = NULL),
+                 selectInput("covariate2", "Y-Axis", choices = NULL),
+                 
+                 ## needs to be reactive, only select input IF TRUE
+                 # currently it works but you have to manually select a council area as both below statements
+                 # aren't connected correctly. Next step!
+                 checkboxInput("subset", "Subset the data for a specific Council area only?", FALSE),
+                 
+                 # only appears IF subset is requested
+                 conditionalPanel(
+                   condition = "input.subset == true",
+                   selectInput("subset_council", "Select Council area:", choices = NULL)
+                 ),
+                 
                  selectInput(
                    "bincolor1",
                    "Color",
@@ -280,32 +316,42 @@ ui <- navbarPage(
                  ),
                  checkboxInput("addcor", "Add Pearson's correlation to the graph?", FALSE)
                ),
-               column(7,
-                      plotOutput(
-                        "compPlot", height = 550, width = 800
+               column(width = 8,
+                      navset_card_underline(
+                        nav_panel("Scatterplot", plotOutput("scatterPlot", height = "400px")),
+                        nav_panel("Hexbin", plotOutput("HexbinPlot", height = "400px"))
                       ))
              ))),
     
     tabPanel("Interactive Map of Deprivation",
-             fluidPage(fluidRow(
-               column(
-                 4,
-                 selectInput(
-                   "cov4",
-                   "Variables:",
-                   choices = names(data_2016),
-                   selected = "Population"
-                 ),
-                 selectInput("colors", "Color Scheme",
-                             rownames(subset(
-                               brewer.pal.info, category %in% c("seq", "div")
-                             )))
+           fluidPage(fluidRow(
+             column(
+               4,
+               radioButtons(
+                 "dataset2",
+                 "Choose SIMD Dataset:",
+                 choices = c("2016" = "data_2016", "2020" =
+                               "data_2020"),
+                 selected = "data_2016",
+                 inline = TRUE
                ),
-               column(8,
-                      leafletOutput(
-                        "my_map", width = "100%", height = 600
-                      ))
-             )))
+               
+               selectInput("covariate3", "Variable", choices = NULL),
+               
+               ## needs to be reactive, only select input IF TRUE
+               checkboxInput("subset_map", "Subset the data for a specific Council area only?", FALSE),
+               selectInput("subset_council_map", "Subset the data for only:", choices = NULL),
+               
+               selectInput("colors", "Color Scheme",
+                           rownames(subset(
+                             brewer.pal.info, category %in% c("seq", "div")
+                           )))
+             ),
+             column(8,
+                    leafletOutput(
+                      "my_map", width = "100%", height = 600
+                    ))
+           )))
   )
 
 
@@ -313,43 +359,139 @@ ui <- navbarPage(
 
 server <- function(input, output, session) {
 
-      datasetInput <- reactive({
-        
-        if(input$dataset == "data_2020"){
-          
-          data_2020 <- data_2020 %>% 
-           dplyr::select(-c(Data_Zone, # make sure you include dplyr:: because otherwise it mixes up w/ a different package
-                      Intermediate_Zone,
-                      Council_area)) %>% 
-            mutate_if(is.character,as.numeric) %>% 
-            na.omit()
-        
-        } 
-        else{
-          
-          data_2016 <- data_2016 %>% 
-            dplyr::select(-c(Data_Zone,
-                      Intermediate_Zone,
-                      Council_area)) %>% 
-            mutate_if(is.character,as.numeric) %>% 
-            na.omit()
-          
-          }
-        
-      })
+    datasetInput <- reactive({
       
-      observeEvent(input$dataset, {
-        
-        req(datasetInput())
-        
-        updateSelectInput(
-          session,
-          inputId = "selected_var",
-          choices = names(datasetInput()),
-          selected = names(datasetInput())[1]
-        )
-      })
+      if(input$dataset == "data_2020"){
+
+        data_2020  
+      } 
+      else{ 
+        data_2016 
+      }
       
+    })
+    
+    # updates the variable selections of first and second tab
+    observeEvent(input$dataset, {
+      
+      req(datasetInput())
+      
+      var_names <- names(datasetInput())
+      
+      # exclude datazone and related variables for the scatterplot choice
+      var_names <- var_names[4:length(var_names)]
+      
+      updateSelectInput(
+        session,
+        inputId = "selected_var",
+        choices = var_names,
+        selected = "Total_population"
+      )
+    })
+    
+    
+    datasetInput1 <- reactive({
+      
+      if(input$dataset1 == "data_2020"){
+        
+        data_2020 
+        
+      } 
+      else{
+        
+        data_2016 
+        
+      }
+      
+    })
+    
+    
+    observeEvent(input$dataset1, {
+      
+      req(datasetInput1())   
+      
+      var_names <- names(datasetInput1())
+      
+      # exclude datazone and related variables for the scatterplot choice
+      var_names <- var_names[4:length(var_names)]
+      
+      updateSelectInput(
+        session,
+        inputId = "covariate1",
+        choices = var_names,
+        selected = var_names[1] 
+      )
+      
+      updateSelectInput(
+        session,
+        inputId = "covariate2",
+        choices = var_names,
+        selected = var_names[2] 
+      )
+      
+    })
+    
+    
+    observe({
+      
+      req(datasetInput1())
+      
+      council_names <- unique(datasetInput1()[3]$Council_area)
+      
+      updateSelectInput(
+        session,
+        inputId = "subset_council",
+        choices = council_names,
+        selected = council_names[1]  
+      )   
+      
+    })
+    
+    
+    subset_data <- reactive({
+      req(datasetInput1())
+      
+      data <- datasetInput1()
+      
+      if (isTRUE(input$subset)) {
+        
+        req(input$subset_council)
+        data <- dplyr::filter(data, Council_area == input$subset_council)
+      }    
+      data
+    })
+    
+    
+    datasetInput2 <- reactive({
+      
+      if(input$dataset2 == "data_2020"){  
+        data_2020  
+      } 
+      else{
+        data_2016   
+      }
+        
+    })
+    
+    # updates the variable selections for the map tab
+    observeEvent(input$dataset2, {
+      
+      req(datasetInput2())
+        
+      var_names <- names(datasetInput2())
+      
+      # exclude datazone and related variables for the scatterplot choice
+      var_names <- var_names[4:length(var_names)]
+      
+      updateSelectInput(
+        session,
+        inputId = "covariate3",
+        choices = var_names,
+        selected = var_names[1]
+      )
+      
+    })
+
       # Summary statistics
       output$summaryStats <- DT::renderDataTable({
         
@@ -466,54 +608,92 @@ server <- function(input, output, session) {
           theme(axis.text = element_text(size = 12, face = "bold"))
       
     })
+  
   #####SCATTERPLOT OUTPUT CODE###
   
-  output$compPlot <-renderPlot({
+ x_variableLabel <- reactive({
+    label <-
+      var_names_combined$label[var_names_combined$Column == input$covariate1]
     
-    if (input$gla == "TRUE" && input$addcor == "TRUE") {
-      ggplot(dataGlas, aes_string(x = input$cov1, y = input$cov2))
-      + geom_point(alpha=1/5,position="jitter",size=3,colour = input$bincolor1)
-      + geom_smooth(method="lm",se=FALSE,color = "black")
-      + ggtitle("Scatterplot")
-      + stat_cor(method = "pearson", label.x.npc = 0.51, label.y.npc = "top", size=6)
-      + stat_cor(method = "pearson", label.x.npc = 0.71, label.y.npc = "top", size=6)
-      + scale_y_continuous(limits=c(0,max(data2[,input$cov2]))) 
-      + theme(axis.text=element_text(size=12, face = "bold"),axis.title=element_text(size=14,face="bold")) 
-      + theme(plot.title = element_text(size=22))
+  })
+  
+  y_variableLabel <- reactive({
+    label <-
+      var_names_combined$label[var_names_combined$Column == input$covariate2]
+    
+  })
+  
+  output$scatterPlot <- renderPlot({
+    
+    #req(datasetInput1(), input$covariate1, input$covariate2)
+    
+    p <-ggplot(datasetInput1(),aes_string(x = input$covariate1, y = input$covariate2)) +
+      geom_point(alpha = 1 / 5,position = "jitter",size = 3,colour = input$bincolor1) +
+      geom_smooth(method = "lm",se = FALSE,color = "black") +
+      labs(x = x_variableLabel(), y = y_variableLabel()) +
+      theme_classic(base_size = 14) +
+      theme(axis.text = element_text(size = 12, face = "bold"))
+    
+    
+    if (input$addcor) {
+      p <- p + stat_cor(method = "pearson",label.x.npc = 0.71,
+                        label.y.npc = "top",size = 6)
     }
-   
-    else if  (input$addcor == "TRUE" && input$gla == "FALSE") {
-      ggplot(data2, aes_string(x = input$cov1, y = input$cov2))
-      + geom_point(alpha=1/5,position="jitter",size=3,colour = input$bincolor1)
-      + geom_smooth(method="lm",se=FALSE,color = "black") 
-      + ggtitle("Scatterplot")
-      + stat_cor(method = "pearson", label.x.npc = 0.51, label.y.npc = "top", size=6) 
-      + stat_cor(method = "pearson", label.x.npc = 0.71, label.y.npc = "top", size=6)
-      + scale_y_continuous(limits=c(0,max(data2[,input$cov2]))) 
-      + theme(axis.text=element_text(size=12, face = "bold"),axis.title=element_text(size=14,face="bold")) 
-      + theme(plot.title = element_text(size=22)) 
+    
+    
+    if (input$subset) {
       
-    }
-    
-    else if (input$gla == "TRUE" && input$addcor == "FALSE") {
-      ggplot(dataGlas, aes_string(x = input$cov1, y = input$cov2))
-      + geom_point(alpha=1/5,position="jitter",size=3, colour = input$bincolor1)
-      + eom_smooth(method="lm",se=FALSE, color = "black") 
-      + ggtitle("Scatterplot") 
-      + scale_y_continuous(limits=c(0,max(data2[,input$cov2]))) 
-      + theme(axis.text=element_text(size=12, face = "bold"),axis.title=element_text(size=14,face="bold")) 
-      + theme(plot.title = element_text(size=22))
+      # req(subset_data(), input$covariate1, input$covariate2)
+      
+      p <-ggplot(subset_data(),aes_string(x = input$covariate1, y = input$covariate2)) +
+        geom_point(alpha = 1 / 5,position = "jitter",size = 3,colour = input$bincolor1) +
+        geom_smooth(method = "lm",se = FALSE,color = "black") +
+        labs(x = x_variableLabel(), y = y_variableLabel()) +
+        theme_classic(base_size = 14) +
+        theme(axis.text = element_text(size = 12, face = "bold"))
+      
+      
+      if (input$addcor) {
+        p <- p + stat_cor(method = "pearson", label.x.npc = 0.71,
+                          label.y.npc = "top", size = 6)
       }
       
-    else if (input$gla == "FALSE" && input$addcor == "FALSE") {
-      ggplot(data2, aes_string(x = input$cov1, y = input$cov2))
-      + geom_point(alpha=1/5,position="jitter",size=3,colour = input$bincolor1) 
-      + geom_smooth(method="lm",se=FALSE,color = "black") 
-      + ggtitle("Scatterplot") 
-      + scale_y_continuous(limits=c(0,max(data2[,input$cov2]))) 
-      + theme(axis.text=element_text(size=12, face = "bold"),axis.title=element_text(size=14,face="bold"))
-      + theme(plot.title = element_text(size=22))
+      p
+      
     }
+    
+    p
+    
+    
+  })    
+  
+  
+  
+  output$HexbinPlot<-renderPlot({
+    
+    p <- ggplot(datasetInput1(), aes_string(x = input$covariate1, y = input$covariate2))+
+      stat_density2d(geom="tile", aes(fill = ..density..), contour = FALSE) + 
+      geom_point(colour = "white")+
+      labs(x = x_variableLabel(), y = y_variableLabel()) +
+      theme_classic(base_size = 14) +
+      theme(axis.text = element_text(size = 12, face = "bold"))
+    
+    
+    if (input$subset) {
+      
+      p <-ggplot(subset_data(),aes_string(x = input$covariate1, y = input$covariate2)) +
+        stat_density2d(geom="tile", aes(fill = ..density..), contour = FALSE) + 
+        geom_point(colour = "white")+
+        labs(x = x_variableLabel(), y = y_variableLabel()) +
+        theme_classic(base_size = 14) +
+        theme(axis.text = element_text(size = 12, face = "bold"))
+      
+      p
+      
+    }
+    
+    p
+    
   })
  
  #### Code for the Leaflet Map of Glasgow
