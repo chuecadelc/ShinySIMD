@@ -204,7 +204,7 @@ ui <- navbarPage(
     secondary = "#FFFFFF",
     success = "#009E73"
     ),
-  checkboxInput("dark_mode", "Dark mode"), #enabling dark mode
+  input_dark_mode(mode="light"), #enabling dark mode
   id = "main_navbar",
   
   tabPanel(
@@ -365,6 +365,10 @@ ui <- navbarPage(
 
 server <- function(input, output, session) {
 
+   observe(session$setCurrentTheme(
+    if (isTRUE(input$dark_mode)) dark else light
+    ))
+     
     datasetInput <- reactive({
       
       if(input$dataset == "data_2020"){
