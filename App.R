@@ -194,11 +194,17 @@ Scotland_local_auth2016 <- Scotland_local_auth2016 %>%
 
 ui <- navbarPage(
   title = "Scottish Index of Multiple Deprivation (SIMD)",
-  theme = bs_theme(
-    version = 5,
-    bootswatch = "minty"
-   # primary = "#48DAC6"
+ theme = bs_theme(
+    bootswatch = "lux",
+    base_font = '"Georgia", Georgia, serif',
+    code_font = font_google("JetBrains Mono"),
+    bg = "#FFF",
+    fg = "#101010",
+    primary = "#1A1A1A",
+    secondary = "#FFFFFF",
+    success = "#009E73"
     ),
+  checkboxInput("dark_mode", "Dark mode"), #enabling dark mode
   id = "main_navbar",
   
   tabPanel(
