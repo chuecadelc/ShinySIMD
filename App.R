@@ -192,7 +192,7 @@ Scotland_local_auth2016 <- Scotland_local_auth2016 %>%
 # )
 
 
-ui <- navbarPage(
+ui <- page_navbar(
   title = "Scottish Index of Multiple Deprivation (SIMD)",
  theme = bs_theme(
     bootswatch = "lux",
@@ -204,10 +204,11 @@ ui <- navbarPage(
     secondary = "#FFFFFF",
     success = "#009E73"
     ),
-  input_dark_mode(mode="light"), #enabling dark mode
+  nav_spacer(),
+  nav_item(input_dark_mode(mode="light")), #enabling dark mode
   id = "main_navbar",
   
-  tabPanel(
+  nav_panel(
     "Information",
     fluidPage(
       p(
@@ -238,7 +239,7 @@ ui <- navbarPage(
     )
   ),
   
-  tabPanel("Summary statistics and visualisation",
+  nav_panel("Summary statistics and visualisation",
            fluidPage(
              shinyFeedback::useShinyFeedback(),
              fluidRow(
@@ -286,7 +287,7 @@ ui <- navbarPage(
               )
            ))),
   
-    tabPanel("Variable Relationship Exploration",
+    nav_panel("Variable Relationship Exploration",
            fluidPage(# shinyFeedback::useShinyFeedback(),
              fluidRow(
                column(
@@ -329,7 +330,7 @@ ui <- navbarPage(
                       ))
              ))),
     
-    tabPanel("Interactive Map of Deprivation",
+    nav_panel("Interactive Map of Deprivation",
            fluidPage(fluidRow(
              column(
                4,
