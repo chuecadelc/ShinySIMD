@@ -42,7 +42,8 @@ data_2016 <- data_2016 %>%
   na.omit() %>%
   mutate(
     Attainment = case_when(Attainment == "*" ~ NA, TRUE ~ Attainment),
-    Attainment = as.numeric(Attainment)
+    Attainment = as.numeric(Attainment),
+    Council_area = str_replace_all(Council_area, "_", " ")
   ) %>%
   mutate_if(is.character, as.factor)
 
@@ -103,7 +104,8 @@ data_2020 <- data_2020 %>%
     crime_count = case_when(crime_count == "*" ~ NA, TRUE ~ crime_count),
     crime_count = as.numeric(crime_count),
     crime_rate = case_when(crime_rate == "*" ~ NA, TRUE ~ crime_rate),
-    crime_rate = as.numeric(crime_rate)
+    crime_rate = as.numeric(crime_rate),
+    Council_area = str_replace_all(Council_area, "_", " ")
   ) %>%
   mutate_if(is.character, as.factor)
 
