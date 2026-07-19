@@ -1,187 +1,178 @@
 ### SCOTTISH INDEX OF MULTIPLE DEPRIVATION 2016 SHINY APP ## 
-
-###LIBRARIES REQUIRED ####
-
-# general packages
+### LIBRARIES REQUIRED ###
 library(tidyverse)
-library(gridExtra)
-library(grid)
-library(data.table)
 library(DT)
 library(scales)
-library(lattice)
-library(magrittr)
-library(stats)
-library(ineq) # for Gini coeff
+library(ineq)       # for Gini coefficient
 
 # data imports
 library(readxl)
-library(haven)
-library(Hmisc)
-# library(rgdal) # deprecated in 2023
 library(sf)
-library(sp)
-library(raster)  
-
 
 # shiny related
 library(shiny)
-library(shinyFeedback) # to show warnings
-library(rsconnect)
+library(shinyFeedback)
 library(shinythemes)
-library(fresh) # improving appearance
-library(bslib) # for nicer themes
+library(shinyWidgets) # warning message
+library(bslib)
 library(RColorBrewer)
 library(ggpubr)
-library(png)
 library(shinydashboard)
 library(leaflet)
 
 
+### ============================================================
+### DATA PREPARATION
+### ============================================================
 
-#####FOR THE DATASET######
+## ---- SIMD 2016 ----
 
-data_2016 <-read_excel("SIMD16_Data.xlsx", sheet = "Data")
-# removing unnecessary rank variables
-data_2016 <- data_2016 %>% 
-  dplyr::select(-c(Overal_SIMD16_Rank,
-              SIMD_2016_Percentile,
-              SIMD_2016_Vigintile,
-              SIMD_2016_Decile,
-              SIMD_2016_Quintile,             
-              Income_rate,
-              Employment_rate,
-              Income_Domain_2016_Rank,
-              Employment_Domain_2016_Rank,
-              Health_Domain_2016_Rank,
-              Education_Domain_2016_Rank,
-              Geographic_Access_Domain_2016_Rank,
-              Crime_Domain_2016_Rank,
-              Housing_Domain_2016_Rank,
-              overcrowded_rate,
-              nocentralheat_rate)) %>% 
-  rename(Working_Age_population = Working_age_population_Revised) %>% 
-  na.omit() %>% 
-  mutate(Attainment =  case_when(
-    Attainment == "*" ~ NA,
-    TRUE ~ Attainment), Attainment = as.numeric(Attainment)) %>% 
-  mutate_if(is.character,as.factor)
+data_2016 <- read_excel("SIMD16_Data.xlsx", sheet = "Data")
 
+data_2016 <- data_2016 %>%
+  dplyr::select(-c(
+    Overal_SIMD16_Rank, SIMD_2016_Percentile, SIMD_2016_Vigintile,
+    SIMD_2016_Decile, SIMD_2016_Quintile, Income_rate, Employment_rate,
+    Income_Domain_2016_Rank, Employment_Domain_2016_Rank,
+    Health_Domain_2016_Rank, Education_Domain_2016_Rank,
+    Geographic_Access_Domain_2016_Rank, Crime_Domain_2016_Rank,
+    Housing_Domain_2016_Rank, overcrowded_rate, nocentralheat_rate
+  )) %>%
+  rename(Working_Age_population = Working_age_population_Revised) %>%
+  na.omit() %>%
+  mutate(
+    Attainment = case_when(Attainment == "*" ~ NA, TRUE ~ Attainment),
+    Attainment = as.numeric(Attainment)
+  ) %>%
+  mutate_if(is.character, as.factor)
 
-## using the 2016 one as the 2020 one is the same
-data_vars <-read_excel("SIMD16_Data.xlsx", sheet = "Indicator descriptions",range = "B1:D37", 
-                            col_types = c("text", "text", "text"),  
-                            col_names = TRUE)
+data_vars <- read_excel(
+  "SIMD16_Data.xlsx", sheet = "Indicator descriptions",
+  range = "B1:D37", col_types = c("text", "text", "text"), col_names = TRUE
+)
 
-var_names <- c("Data Zone", "Intermediate zone", "Council Area", "Total population","Working Age population",
-               "Count of Income deprived","Unemployment count","Comparative Illness Factor" ,"Alcohol-related hospitalisations",
-               "Drug-related hospitalisations","Standardised mortality rate","Mental health prescription rates","Low birth weight rate",
-               "Emergency hospitalisation rate","School pupil attendance","Attainment education of school leavers ","Working age of no qualification individuals",
-               "NEET","HESA","Avg driving time to a petrol station","Avg driving time to a GP","Avg driving time to a post office",
-               "Avg driving time to primary school","Avg driving time to retail store","Avg driving time to secondary school",
-               "Avg public transport time to GP","Avg public transport time to post office","Avg public transport time to retail store",
-               "Crime rate per 10,000 people","Overcrowded household count","Count of households w/ no central heating")
+var_names <- c(
+  "Data Zone", "Intermediate zone", "Council Area", "Total population",
+  "Working Age population", "Count of Income deprived", "Unemployment count",
+  "Comparative Illness Factor", "Alcohol-related hospitalisations",
+  "Drug-related hospitalisations", "Standardised mortality rate",
+  "Mental health prescription rates", "Low birth weight rate",
+  "Emergency hospitalisation rate", "School pupil attendance",
+  "Attainment education of school leavers", "Working age of no qualification individuals",
+  "NEET", "HESA", "Avg driving time to a petrol station", "Avg driving time to a GP",
+  "Avg driving time to a post office", "Avg driving time to primary school",
+  "Avg driving time to retail store", "Avg driving time to secondary school",
+  "Avg public transport time to GP", "Avg public transport time to post office",
+  "Avg public transport time to retail store", "Crime rate per 10,000 people",
+  "Overcrowded household count", "Count of households w/ no central heating"
+)
 
-exclude_vars <- c("Income_rate","Employment_rate","crime_count","overcrowded_rate","nocentralheat_rate")
+exclude_vars <- c("Income_rate", "Employment_rate", "crime_count",
+                   "overcrowded_rate", "nocentralheat_rate")
 
-data_vars <- data_vars %>% 
-  filter(!Column %in% exclude_vars) %>% 
+data_vars <- data_vars %>%
+  filter(!Column %in% exclude_vars) %>%
   mutate(label = var_names)
 
+
+## ---- SIMD 2020 ----
 
 data_2020 <- read_excel("SIMD20_Data.xlsx", sheet = "Data")
 
 data_2020 <- data_2020 %>%
-  dplyr::select(
-    -c(SIMD2020v2_Rank,
-      SIMD_2020v2_Percentile,
-      SIMD2020v2_Vigintile,
-      SIMD2020v2_Decile,
-      SIMD2020v2_Quintile,
-      income_rate,
-      employment_rate,
-      SIMD2020v2_Income_Domain_Rank,
-      SIMD2020_Employment_Domain_Rank,
-      SIMD2020_Health_Domain_Rank,
-      SIMD2020_Education_Domain_Rank,
-      SIMD2020_Access_Domain_Rank,
-      SIMD2020_Crime_Domain_Rank,
-      SIMD2020_Housing_Domain_Rank,
-      overcrowded_rate,
-      nocentralheating_rate)) %>% 
-  ## changing var names here too so labels can later on match
-  rename(Income_count = income_count, Employment_count = employment_count,
-         Noquals = no_qualifications,HESA = University,
-         NEET = not_participating, 
-         nocentralheat_count = nocentralheating_count,
-         drive_PO = drive_post,  
-         PT_Post = PT_post ) %>% 
-  na.omit() %>% 
-  ## will try mutate_if where a variable has * instead of individ later
-  mutate(Attainment =  case_when(
-    Attainment == "*" ~ NA,
-    TRUE ~ Attainment), Attainment = as.numeric(Attainment),
-    Attendance =  case_when(
-    Attendance == "*" ~ NA,
-      TRUE ~ Attendance), Attendance = as.numeric(Attendance),
-    crime_count =  case_when(
-      crime_count == "*" ~ NA,
-      TRUE ~ crime_count), crime_count = as.numeric(crime_count),
-    crime_rate =  case_when(
-      crime_rate == "*" ~ NA,
-      TRUE ~ crime_rate), crime_rate = as.numeric(crime_rate)
-    ) %>% 
-  mutate_if(is.character,as.factor)
+  dplyr::select(-c(
+    SIMD2020v2_Rank, SIMD_2020v2_Percentile, SIMD2020v2_Vigintile,
+    SIMD2020v2_Decile, SIMD2020v2_Quintile, income_rate, employment_rate,
+    SIMD2020v2_Income_Domain_Rank, SIMD2020_Employment_Domain_Rank,
+    SIMD2020_Health_Domain_Rank, SIMD2020_Education_Domain_Rank,
+    SIMD2020_Access_Domain_Rank, SIMD2020_Crime_Domain_Rank,
+    SIMD2020_Housing_Domain_Rank, overcrowded_rate, nocentralheating_rate
+  )) %>%
+  rename(
+    Income_count = income_count, Employment_count = employment_count,
+    Noquals = no_qualifications, HESA = University, NEET = not_participating,
+    nocentralheat_count = nocentralheating_count, drive_PO = drive_post,
+    PT_Post = PT_post
+  ) %>%
+  na.omit() %>%
+  mutate(
+    Attainment = case_when(Attainment == "*" ~ NA, TRUE ~ Attainment),
+    Attainment = as.numeric(Attainment),
+    Attendance = case_when(Attendance == "*" ~ NA, TRUE ~ Attendance),
+    Attendance = as.numeric(Attendance),
+    crime_count = case_when(crime_count == "*" ~ NA, TRUE ~ crime_count),
+    crime_count = as.numeric(crime_count),
+    crime_rate = case_when(crime_rate == "*" ~ NA, TRUE ~ crime_rate),
+    crime_rate = as.numeric(crime_rate)
+  ) %>%
+  mutate_if(is.character, as.factor)
 
+data_vars1 <- read_excel(
+  "SIMD20_Data.xlsx", sheet = "Indicator descriptions",
+  range = "B1:D37", col_types = c("text", "text", "text"), col_names = TRUE
+)
 
+var_names1 <- c(
+  "Data Zone", "Intermediate zone", "Council Area", "Total population",
+  "Working Age population", "Count of Income deprived", "Unemployment count",
+  "Comparative Illness Factor", "Alcohol-related hospitalisations",
+  "Drug-related hospitalisations", "Standardised mortality rate",
+  "Mental health prescription rates", "Low birth weight rate",
+  "Emergency hospitalisation rate", "School pupil attendance",
+  "Attainment education of school leavers", "Working age of no qualification individuals",
+  "NEET", "HESA", "Avg driving time to a petrol station", "Avg driving time to a GP",
+  "Avg driving time to a post office", "Avg driving time to primary school",
+  "Avg driving time to retail store", "Avg driving time to secondary school",
+  "Avg public transport time to GP", "Avg public transport time to post office",
+  "Avg public transport time to retail store",
+  "Percentage of households w/out fast broadband", "Recorded crimes",
+  "Crime rate per 10,000 people", "Overcrowded household count",
+  "Count of households w/ no central heating"
+)
 
-
-## using the 2016 one as the 2020 one is the same
-data_vars1 <-read_excel("SIMD20_Data.xlsx", sheet = "Indicator descriptions",range = "B1:D37", 
-                       col_types = c("text", "text", "text"),  
-                       col_names = TRUE)
-
-# Using same labels as above plus two new ones for recorded crimes and broadband variables
-var_names1 <- c("Data Zone", "Intermediate zone", "Council Area", "Total population","Working Age population",
-               "Count of Income deprived","Unemployment count","Comparative Illness Factor" ,"Alcohol-related hospitalisations",
-               "Drug-related hospitalisations","Standardised mortality rate","Mental health prescription rates","Low birth weight rate",
-               "Emergency hospitalisation rate","School pupil attendance","Attainment education of school leavers ","Working age of no qualification individuals",
-               "NEET","HESA","Avg driving time to a petrol station","Avg driving time to a GP","Avg driving time to a post office",
-               "Avg driving time to primary school","Avg driving time to retail store","Avg driving time to secondary school",
-               "Avg public transport time to GP","Avg public transport time to post office","Avg public transport time to retail store",
-               "Percentage of households w/out fast broadband","Recorded crimes","Crime rate per 10,000 people",
-               "Overcrowded household count","Count of households w/ no central heating")
 
 exclude_vars1 <- c("Income_rate","Employment_rate","overcrowded_rate")
 
-data_vars1 <- data_vars1 %>% 
-  filter(!Column %in% exclude_vars1) %>% 
+data_vars1 <- data_vars1 %>%
+  filter(!Column %in% exclude_vars1) %>%
   mutate(
-        Column = case_when(
-            Column == "no_qualifications" ~ "Noquals",
-            Column == "University" ~ "HESA",
-            Column == "not_participating" ~ "NEET",
-            Column == "nocentralheating_count" ~ "nocentralheat_count",
-            Column == "drive_post" ~ "drive_PO",
-            Column == "PT_post"~ "PT_Post",
-            Column == "Working_age_population" ~ "Working_Age_population",
-            TRUE ~ Column),
-        label = var_names1)
+    Column = case_when(
+      Column == "no_qualifications" ~ "Noquals",
+      Column == "University" ~ "HESA",
+      Column == "not_participating" ~ "NEET",
+      Column == "nocentralheating_count" ~ "nocentralheat_count",
+      Column == "drive_post" ~ "drive_PO",
+      Column == "PT_post" ~ "PT_Post",
+      Column == "Working_age_population" ~ "Working_Age_population",
+      TRUE ~ Column
+    ),
+    label = var_names1
+  )
 
-# ensuring all vars have their correct corresponding label
+# Combined variable label lookup used across all tabs
 var_names_combined <- bind_rows(data_vars, data_vars1) %>%
   distinct(Column, .keep_all = TRUE)
 
 
-# local authority areas (established 1996)
-Scotland_local_auth2016 <- read_sf("SG_SIMD_2016_1.geojson", "SG_SIMD_2016_1", stringsAsFactors = F)
+## ---- Geographic data (Scotland-wide, 2016 boundaries) ----
 
-Scotland_local_auth2016 <- Scotland_local_auth2016 %>% 
-  dplyr::select(Data_Zone = DataZone,LAName,Shape_Leng,Shape_Area)
+Scotland_local_auth2016 <- read_sf("SG_SIMD_2016_1.geojson")
+
+Scotland_local_auth2016 <- Scotland_local_auth2016 %>%
+  dplyr::select(Data_Zone = DataZone, LAName, Shape_Leng, Shape_Area)
+
+
+## Random selection of 12 colors instead of the 600+ in colors()
+curated_palettes <- c(
+  "yellow","orange2", "thistle","plum" ,"turquoise" ,
+  "royalblue","violet", "orchid4" ,"tan", "sienna",
+  "grey", "black")
 
 
 
-# Define USER INTERFACE for application 
+### ============================================================
+### UI
+### ============================================================
 
 # Uncomment if you have your own CSS and you want more customisation
 # my_theme <- bs_theme(
@@ -194,7 +185,7 @@ Scotland_local_auth2016 <- Scotland_local_auth2016 %>%
 
 ui <- page_navbar(
   title = "Scottish Index of Multiple Deprivation (SIMD)",
- theme = bs_theme(
+  theme = bs_theme(
     bootswatch = "lux",
     base_font = '"Georgia", Georgia, serif',
     code_font = font_google("JetBrains Mono"),
@@ -203,163 +194,112 @@ ui <- page_navbar(
     primary = "#1A1A1A",
     secondary = "#FFFFFF",
     success = "#009E73"
-    ),
+  ),
   nav_spacer(),
-  nav_item(input_dark_mode(mode="light")), #enabling dark mode
   id = "main_navbar",
-  
+
   nav_panel(
     "Information",
     fluidPage(
-      p(
-        "This app uses the Scottish Index of Multiple Deprivation data. You can choose from either the 2016 or 2020 datasets to showcase measures of central tendency, statistical tests such as correlation.
-               It includes histograms, scatterplots, and an interactive map of Glasgow."
-      ),
-      p(
-        "The aim of this app is to explain the different relationships between the variables in such index, obtained from the Scottish Government Data Center.
-               This app was used for promotional activities of the Q-Step programme across schools in the Greater Glasgow Area and University of Glasgow Open Days."
-      ),
-      p(
-        "Developed by Dr. Cristina Chueca Del Cerro, under the supervision of Dr. Brian Fogarty and Dr. Niccole Pamphilis in 2017 for the Q-Step programme.
-                              Latest update including new theme, visualisations and interactive map features Oct 2025."
-      ),
-      #, style = "font-size:26px"
-      textInput("story", "Please leave your comments here"),
+      p("This app uses the Scottish Index of Multiple Deprivation data. You can choose from either the 2016 or 2020 datasets to explore measures of central tendency and relationships between variables, including histograms, scatterplots, and an interactive map of Scotland."),
+      p("The aim of this app is to explain the relationships between variables in the index, obtained from the Scottish Government Data Centre. This app was used for promotional activities of the Q-Step programme across schools in the Greater Glasgow Area and University of Glasgow Open Days."),
+      p("Developed by Dr. Cristina Chueca Del Cerro, under the supervision of Dr. Brian Fogarty and Dr. Niccole Pamphilis in 2017 for the Q-Step programme. Latest update including new theme, visualisations, and Scotland-wide interactive map, Oct 2025."),
+      textAreaInput("story", "Please leave your comments here", rows = 3),
       br(),
-      tags$img(
-        src = "qstep2.png",
-        height = 110,
-        width = 220
-      ),
-      tags$img(
-        src = "university.png.png",
-        height = 110,
-        width = 250
+      br(),
+      tags$img(src = "qstep2.png", height = 110, width = 220),
+      tags$img(src = "university.png", height = 110, width = 250)
+    )
+  ),
+
+  nav_panel(
+    "Summary statistics and visualisation",
+    fluidPage(
+      shinyFeedback::useShinyFeedback(),
+      fluidRow(
+        column(
+          width = 4,
+          radioButtons("dataset", "Choose SIMD Dataset:",
+                       choices = c("2016" = "data_2016", "2020" = "data_2020"),
+                       selected = "data_2016", inline = TRUE),
+          selectInput("selected_var", "Choose a Variable:", choices = NULL),
+          selectInput("bincolor", "Select histogram bars color:",
+                      choices = curated_palettes, selected = "orange2"),
+          sliderInput("bins", "Number of histogram Bins:",
+                      min = 1, max = 50, value = 30),
+          checkboxInput("addmean", "Add Mean line to histogram & desnity plots?", value = FALSE),
+          hr(),
+          h4("Description"),
+          uiOutput("varDescription")
+        ),
+        column(
+          width = 8,
+          navset_card_underline(
+            nav_panel("Histogram", plotOutput("HistPlot", height = "300px")),
+            nav_panel("Density", plotOutput("DensityPlot", height = "300px")),
+            nav_panel("Boxplot", plotOutput("BoxPlot", height = "300px"))
+          ),
+          h4("Summary Statistics"),
+          DTOutput("summaryStats")
+        )
       )
     )
   ),
-  
-  nav_panel("Summary statistics and visualisation",
-           fluidPage(
-             shinyFeedback::useShinyFeedback(),
-             fluidRow(
-             column(
-               width = 4,
-               
-               radioButtons("dataset", "Choose SIMD Dataset:",
-                            choices = c("2016"="data_2016", "2020"="data_2020"),
-                            selected = "data_2016",
-                            inline = TRUE),
-               
-               selectInput(
-                 "selected_var",
-                 "Choose a Variable:",
-                 choices = NULL # so when you select a df it shows the relevant var names
-                 
-               ),
-               selectInput(
-                 "bincolor",
-                 "Select histogram bars color:",
-                 choices = colors(),
-                 selected = "grey"
-               ),
-               sliderInput(
-                 "bins",
-                 "Number of histogram Bins:",
-                 min = 1,
-                 max = 50,
-                 value = 30
-               ),
-               checkboxInput("addmean", "Add Mean Line to plots?", value = FALSE),
-               hr(),
-               h4("Description"),
-               uiOutput("varDescription"), # to show the var description
-             ),
-             column(
-               width = 8,
-               navset_card_underline(
-                 nav_panel("Histogram", plotOutput("HistPlot", height = "300px")),
-                 nav_panel("Density", plotOutput("DensityPlot", height = "300px")),
-                 nav_panel("Boxplot", plotOutput("BoxPlot", height = "300px"))
-               ),
-               h4("Summary Statistics"),
-               DTOutput("summaryStats") # all summary stats together, as a table
-              )
-           ))),
-  
-    nav_panel("Variable Relationship Exploration",
-           fluidPage(# shinyFeedback::useShinyFeedback(),
-             fluidRow(
-               column(
-                 4,
-                 radioButtons(
-                   "dataset1",
-                   "Choose SIMD Dataset:",
-                   choices = c("2016" = "data_2016", "2020" =
-                                 "data_2020"),
-                   selected = "data_2016",
-                   inline = TRUE
-                 ),
-                 
-                 selectInput("covariate1", "X-Axis", choices = NULL),
-                 selectInput("covariate2", "Y-Axis", choices = NULL),
-                 
-                 ## needs to be reactive, only select input IF TRUE
-                 # currently it works but you have to manually select a council area as both below statements
-                 # aren't connected correctly. Next step!
-                 checkboxInput("subset", "Subset the data for a specific Council area only?", FALSE),
-                 
-                 # only appears IF subset is requested
-                 conditionalPanel(
-                   condition = "input.subset == true",
-                   selectInput("subset_council", "Select Council area:", choices = NULL)
-                 ),
-                 
-                 selectInput(
-                   "bincolor1",
-                   "Color",
-                   choices = colors(),
-                   selected = "grey"
-                 ),
-                 checkboxInput("addcor", "Add Pearson's correlation to the graph?", FALSE)
-               ),
-               column(width = 8,
-                      navset_card_underline(
-                        nav_panel("Scatterplot", plotOutput("scatterPlot", height = "400px")),
-                        nav_panel("Hexbin", plotOutput("HexbinPlot", height = "400px"))
-                      ))
-             ))),
-    
-    nav_panel("Interactive Map of Deprivation",
-           fluidPage(fluidRow(
-             column(
-               4,
-               radioButtons(
-                 "dataset2",
-                 "Choose SIMD Dataset:",
-                 choices = c("2016" = "data_2016", "2020" =
-                               "data_2020"),
-                 selected = "data_2016",
-                 inline = TRUE
-               ),
-               
-               selectInput("covariate3", "Variable", choices = NULL),
-               
-               ## needs to be reactive, only select input IF TRUE
-               checkboxInput("subset_map", "Subset the data for a specific Council area only?", FALSE),
-               selectInput("subset_council_map", "Subset the data for only:", choices = NULL),
-               
-               selectInput("colors", "Color Scheme",
-                           rownames(subset(
-                             brewer.pal.info, category %in% c("seq", "div")
-                           )))
-             ),
-             column(8,
-                    leafletOutput(
-                      "my_map", width = "100%", height = 600
-                    ))
-           )))
+
+  nav_panel(
+    "Variable Relationship Exploration",
+    fluidPage(
+      fluidRow(
+        column(
+          4,
+          radioButtons("dataset1", "Choose SIMD Dataset:",
+                       choices = c("2016" = "data_2016", "2020" = "data_2020"),
+                       selected = "data_2016", inline = TRUE),
+          selectInput("covariate1", "X-Axis", choices = NULL),
+          selectInput("covariate2", "Y-Axis", choices = NULL),
+          checkboxInput("subset", "Subset the data for a specific Council area only?", FALSE),
+          conditionalPanel(
+            condition = "input.subset == true",
+            selectInput("subset_council", "Select Council area:", choices = NULL)
+          ),
+          selectInput("bincolor1", "Color", choices = curated_palettes, selected = "orange2"),
+          checkboxInput("addcor", "Add Pearson's correlation to scatterplot?", FALSE)
+        ),
+        column(
+          width = 8,
+          navset_card_underline(
+            nav_panel("Scatterplot", plotOutput("scatterPlot", height = "400px")),
+            nav_panel("Hexbin", plotOutput("HexbinPlot", height = "400px"))
+          )
+        )
+      )
+    )
+  ),
+
+  nav_panel(
+    "Interactive Map of Deprivation",
+    fluidPage(
+      fluidRow(
+        column(
+          4,
+          radioButtons("dataset2", "Choose SIMD Dataset:",
+                       choices = c("2016" = "data_2016", "2020" = "data_2020"),
+                       selected = "data_2016", inline = TRUE),
+          selectInput("covariate3", "Variable", choices = NULL),
+          checkboxInput("subset_map", "Subset the data for a specific Council area only?", FALSE),
+          conditionalPanel(
+            condition = "input.subset_map == true",
+            selectInput("subset_council_map", "Select Council area:", choices = NULL)
+          ),
+          selectInput("colors", "Color Scheme",
+                      rownames(subset(brewer.pal.info, category %in% c("seq", "div"))))
+        ),
+        column(8, leafletOutput("my_map", width = "100%", height = 600))
+      )
+    )
   )
+)
+
 
 
 ##### SERVER CODE FOR THE APP####
