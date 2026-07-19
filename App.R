@@ -277,8 +277,7 @@ ui <- page_navbar(
       )
     )
   ),
-
-  nav_panel(
+   nav_panel(
     "Interactive Map of Deprivation",
     fluidPage(
       fluidRow(
@@ -288,13 +287,15 @@ ui <- page_navbar(
                        choices = c("2016" = "data_2016", "2020" = "data_2020"),
                        selected = "data_2016", inline = TRUE),
           selectInput("covariate3", "Variable", choices = NULL),
-          checkboxInput("subset_map", "Subset the data for a specific Council area only?", FALSE),
+          checkboxInput("show_all_scotland", "Show the full map of Scotland?", FALSE),
           conditionalPanel(
-            condition = "input.subset_map == true",
-            selectInput("subset_council_map", "Select Council area:", choices = NULL)
+            condition = "!input.show_all_scotland",
+            selectInput("council_map", "Select Council area:", choices = NULL)
           ),
           selectInput("colors", "Color Scheme",
-                      rownames(subset(brewer.pal.info, category %in% c("seq", "div"))))
+                      rownames(subset(brewer.pal.info, category %in% c("seq", "div")))),
+          h4("Variable Description"),
+          uiOutput("varDescription")
         ),
         column(8, leafletOutput("my_map", width = "100%", height = 600))
       )
@@ -302,420 +303,349 @@ ui <- page_navbar(
   )
 )
 
-
-
-##### SERVER CODE FOR THE APP####
+### ============================================================
+### SERVER
+### ============================================================
 
 server <- function(input, output, session) {
 
-   observe(session$setCurrentTheme(
-    if (isTRUE(input$dark_mode)) dark else light
-    ))
-     
-    datasetInput <- reactive({
-      
-      if(input$dataset == "data_2020"){
+  ## In progress
+  # observe(session$setCurrentTheme(
+  #   if (isTRUE(input$dark_mode)) dark else light
+  # ))
+  
+  ## ---- Dataset selection helper ----
+  # Replaces three near-identical if/else blocks with one shared function
 
-        data_2020  
-      } 
-      else{ 
-        data_2016 
-      }
-      
-    })
-    
-    # updates the variable selections of first and second tab
-    observeEvent(input$dataset, {
-      
-      req(datasetInput())
-      
-      var_names <- names(datasetInput())
-      
-      # exclude datazone and related variables for the scatterplot choice
-      var_names <- var_names[4:length(var_names)]
-      
-      updateSelectInput(
-        session,
-        inputId = "selected_var",
-        choices = var_names,
-        selected = "Total_population"
-      )
-    })
-    
-    
-    datasetInput1 <- reactive({
-      
-      if(input$dataset1 == "data_2020"){
-        
-        data_2020 
-        
-      } 
-      else{
-        
-        data_2016 
-        
-      }
-      
-    })
-    
-    
-    observeEvent(input$dataset1, {
-      
-      req(datasetInput1())   
-      
-      var_names <- names(datasetInput1())
-      
-      # exclude datazone and related variables for the scatterplot choice
-      var_names <- var_names[4:length(var_names)]
-      
-      updateSelectInput(
-        session,
-        inputId = "covariate1",
-        choices = var_names,
-        selected = var_names[1] 
-      )
-      
-      updateSelectInput(
-        session,
-        inputId = "covariate2",
-        choices = var_names,
-        selected = var_names[2] 
-      )
-      
-    })
-    
-    
-    observe({
-      
-      req(datasetInput1())
-      
-      council_names <- unique(datasetInput1()[3]$Council_area)
-      
-      updateSelectInput(
-        session,
-        inputId = "subset_council",
-        choices = council_names,
-        selected = council_names[1]  
-      )   
-      
-    })
-    
-    
-    subset_data <- reactive({
-      req(datasetInput1())
-      
-      data <- datasetInput1()
-      
-      if (isTRUE(input$subset)) {
-        
-        req(input$subset_council)
-        data <- dplyr::filter(data, Council_area == input$subset_council)
-      }    
-      data
-    })
-    
-    
-    datasetInput2 <- reactive({
-      
-      if(input$dataset2 == "data_2020"){  
-        data_2020  
-      } 
-      else{
-        data_2016   
-      }
-        
-    })
-    
-    # updates the variable selections for the map tab
-    observeEvent(input$dataset2, {
-      
-      req(datasetInput2())
-        
-      var_names <- names(datasetInput2())
-      
-      # exclude datazone and related variables for the scatterplot choice
-      var_names <- var_names[4:length(var_names)]
-      
-      updateSelectInput(
-        session,
-        inputId = "covariate3",
-        choices = var_names,
-        selected = var_names[1]
-      )
-      
-    })
+  get_dataset <- function(choice) {
+    if (choice == "data_2020") data_2020 else data_2016
+  }
 
-      # Summary statistics
-      output$summaryStats <- DT::renderDataTable({
-        
-        req(datasetInput(),input$selected_var)
-     
-        table_df <- datasetInput() %>%
-          dplyr::select(input$selected_var) %>% # so it has the variable name
-          dplyr::summarise(
-            Mean = round(mean(.data[[input$selected_var]]), 3),
-            Median = round(median(.data[[input$selected_var]]), 3),
-            `Std. Dev` = round(sd(.data[[input$selected_var]]), 3),
-            `Gini coefficient` = round(ineq::Gini(.data[[input$selected_var]]), 3)
-          )
-        
-        
-        DT::datatable(
-          table_df,
-          selection = 'none',rownames = FALSE,
-          class = 'table table-primary',
-          options = list(dom = 't', ordering = FALSE,
-              initComplete = JS( # to manually change out table style
-                "function(settings, json) {",
-                "$(this.api().table().body()).addClass('table-light');",
-                "}"
-              )
-            )
-          )
-      })
-      
+  datasetInput  <- reactive({ get_dataset(input$dataset) })
+  datasetInput1 <- reactive({ get_dataset(input$dataset1) })
+  datasetInput2 <- reactive({ get_dataset(input$dataset2) })
 
-    # Variable description 
-    output$varDescription <- renderUI({
-      
-      #subsetting the var names
-      var_names <-  var_names_combined %>% 
-        filter(Column == input$selected_var)
-      
-      # displaying the relevant variable properties
-      tagList(
-        tags$p(tags$strong("Variable:"),var_names$label),
-        tags$p(tags$strong("Indicator Type:"), var_names$`Indicator type`),
-        tags$p(tags$strong("Description:"), var_names$Description)
+
+  ## ---- Variable choice update helper ----
+  
+  # Replaces three near-identical observeEvent blocks
+  
+
+  # Displays reader-friendly labels while selecting the equivalent col from df.
+  
+  get_labelled_choices <- function(dataset) {
+    col_names <- names(dataset)[4:length(names(dataset))]
+    labels <- var_names_combined$label[match(col_names, var_names_combined$Column)]
+    setNames(col_names, labels)
+  }
+  
+
+  update_var_choices <- function(session, dataset, input_id, selected_index = 1) {
+    choices <- get_labelled_choices(dataset)
+    updateSelectInput(session, inputId = input_id, choices = choices,
+                      selected = choices[selected_index])
+  }
+
+  observeEvent(input$dataset, {
+    req(datasetInput())
+    update_var_choices(session, datasetInput(), "selected_var")
+  })
+
+  observeEvent(input$dataset1, {
+    req(datasetInput1())
+    update_var_choices(session, datasetInput1(), "covariate1", 1)
+    update_var_choices(session, datasetInput1(), "covariate2", 2)
+  })
+
+  observeEvent(input$dataset2, {
+    req(datasetInput2())
+    update_var_choices(session, datasetInput2(), "covariate3")
+  })
+
+
+  ## ---- Council area choices ----
+  
+  observe({
+    req(datasetInput1())
+    council_names <- datasetInput1()$Council_area %>%
+      trimws() %>%
+      unique() %>%
+      sort()
+    updateSelectInput(session, inputId = "subset_council",
+                      choices = council_names, selected = council_names[1])
+  })
+  
+  observe({
+    req(datasetInput2())
+    council_names <- datasetInput2()$Council_area %>%
+      trimws() %>%
+      unique() %>%
+      sort()
+    updateSelectInput(session, inputId = "subset_council_map",
+                      choices = council_names, selected = council_names[1])
+  })
+  
+  
+  subset_data <- reactive({
+    req(datasetInput1())
+    data <- datasetInput1()
+    if (isTRUE(input$subset)) {
+      req(input$subset_council)
+      data <- dplyr::filter(data, Council_area == input$subset_council)
+    }
+    data
+  })
+  
+
+  # Data actually used for scatter/hexbin plots -- avoids duplicating
+  # the subset vs full-data branch inside every plot renderer
+  plot_data <- reactive({
+    if (isTRUE(input$subset)) subset_data() else datasetInput1()
+  })
+
+
+  ## ---- Summary statistics ----
+
+  output$summaryStats <- DT::renderDataTable({
+    req(datasetInput(), input$selected_var)
+
+    table_df <- datasetInput() %>%
+      dplyr::summarise(
+        Mean = round(mean(.data[[input$selected_var]], na.rm = TRUE), 3),
+        Median = round(median(.data[[input$selected_var]], na.rm = TRUE), 3),
+        `Std. Dev` = round(sd(.data[[input$selected_var]], na.rm = TRUE), 3),
+        `Gini coefficient` = round(ineq::Gini(.data[[input$selected_var]]), 3)
+      )
+
+    DT::datatable(
+      table_df, selection = "none", rownames = FALSE,
+      class = "table table-primary",
+      options = list(
+        dom = "t", ordering = FALSE,
+        initComplete = JS(
+          "function(settings, json) {",
+          "$(this.api().table().body()).addClass('table-light');",
+          "}"
         )
-      
-    })
-    
-    variableLabel <- reactive({
-      
-      label <- var_names_combined$label[var_names_combined$Column == input$selected_var]
-      
-    })
-  
-    # Histogram
-    output$HistPlot <- renderPlot({
-      
-      p <- ggplot(datasetInput(), aes_string(x =input$selected_var)) +
-        geom_histogram(bins = input$bins, fill = input$bincolor, color = "black") +
-        labs(x = variableLabel())+
-        theme_classic(base_size = 14) +
-        theme(axis.text = element_text(size = 12, face = "bold"))
-      
-      if (input$addmean) {
-        p <- p + geom_vline(xintercept = mean(.data[[input$selected_var]]), lwd = 2, lty = 2)
-      }
-      
-      p
-    })
-    
-    # Density plot
-    
-    output$DensityPlot <- renderPlot({
-      
-      p <- ggplot(datasetInput(), aes(x = .data[[input$selected_var]])) +
-        geom_density(alpha = 0.4) +
-        labs(x = variableLabel())+
-        theme_classic(base_size = 14) +
-        theme(axis.text = element_text(size = 12, face = "bold"))
-      
-      
-      if (input$addmean) {
-        p <- p + geom_vline(xintercept = mean(.data[[input$selected_var]], na.rm = TRUE), lwd = 2, lty = 2)
-      }
-      
-      p
-    })
-    
-    # Boxplot
-    output$BoxPlot <- renderPlot({
-      
-      # compare both datasets for the same variable (except for Broadband, only in 2020)
-      
-      if(!input$selected_var %in% names(data_2016)){
-        
-        shinyFeedback::feedbackDanger("selected_var", input$selected_var == "broadband", 
-        "This variable was only present in the 2020 dataset. Boxplot comparison not possible")
-        
-        return(NULL)
-      }
-      
-      else {
-        hideFeedback("selected_var") # to remove the warning once they've chosen a diff var
-        
-        combined_data <- bind_rows(
-        data_2016 %>% dplyr::select(input$selected_var) %>% mutate(Year="2016"),
-        data_2020 %>%  dplyr::select(input$selected_var) %>%  mutate(Year="2020")
       )
-      }
-      
-      ggplot(combined_data, aes(x = Year, y = .data[[input$selected_var]])) +
-          geom_boxplot(alpha = 0.5) +
-          coord_flip() +
-          labs(x= "Year", y = variableLabel())+
-          theme_classic(base_size = 14) +
-          theme(axis.text = element_text(size = 12, face = "bold"))
-      
-    })
-  
-  #####SCATTERPLOT OUTPUT CODE###
-  
- x_variableLabel <- reactive({
-    label <-
-      var_names_combined$label[var_names_combined$Column == input$covariate1]
-    
+    )
   })
-  
+
+
+  ## ---- Variable description ----
+
+  output$varDescription <- renderUI({
+    req(input$selected_var)
+    var_info <- var_names_combined %>% filter(Column == input$selected_var)
+
+    tagList(
+      tags$p(tags$strong("Variable:"), var_info$label),
+      tags$p(tags$strong("Indicator Type:"), var_info$`Indicator type`),
+      tags$p(tags$strong("Description:"), var_info$Description)
+    )
+  })
+
+  variableLabel <- reactive({
+    var_names_combined$label[var_names_combined$Column == input$selected_var]
+  })
+
+
+  ## ---- Histogram ----
+
+  output$HistPlot <- renderPlot({
+    req(datasetInput(), input$selected_var)
+
+    p <- ggplot(datasetInput(), aes(x = .data[[input$selected_var]])) +
+      geom_histogram(bins = input$bins, fill = input$bincolor, color = "black") +
+      labs(x = variableLabel()) +
+      theme_classic(base_size = 14) +
+      theme(axis.text = element_text(size = 12, face = "bold"))
+
+    if (input$addmean) {
+      mean_val <- mean(datasetInput()[[input$selected_var]], na.rm = TRUE)
+      p <- p + geom_vline(xintercept = mean_val, lwd = 1, lty = 2)
+    }
+
+    p
+  })
+
+
+  ## ---- Density plot ----
+
+  output$DensityPlot <- renderPlot({
+    req(datasetInput(), input$selected_var)
+
+    p <- ggplot(datasetInput(), aes(x = .data[[input$selected_var]])) +
+      geom_density(alpha = 0.4) +
+      labs(x = variableLabel()) +
+      theme_classic(base_size = 14) +
+      theme(axis.text = element_text(size = 12, face = "bold"))
+
+    if (input$addmean) {
+      mean_val <- mean(datasetInput()[[input$selected_var]], na.rm = TRUE)
+      p <- p + geom_vline(xintercept = mean_val, lwd = 1, lty = 2)
+    }
+
+    p
+  })
+
+
+  ## ---- Boxplot (2016 vs 2020 comparison) ----
+
+  output$BoxPlot <- renderPlot({
+    req(input$selected_var)
+
+    var_in_both <- input$selected_var %in% names(data_2016) &&
+                   input$selected_var %in% names(data_2020)
+
+    if (!var_in_both) {
+      shinyFeedback::feedbackDanger(
+        "selected_var", TRUE,
+        "This variable is not available in both datasets. Boxplot comparison not possible."
+      )
+      return(NULL)
+    }
+
+    shinyFeedback::hideFeedback("selected_var")
+
+    combined_data <- bind_rows(
+      data_2016 %>% dplyr::select(all_of(input$selected_var)) %>% mutate(Year = "2016"),
+      data_2020 %>% dplyr::select(all_of(input$selected_var)) %>% mutate(Year = "2020")
+    )
+
+    ggplot(combined_data, aes(x = Year, y = .data[[input$selected_var]])) +
+      geom_boxplot(alpha = 0.5) +
+      coord_flip() +
+      labs(x = "Year", y = variableLabel()) +
+      theme_classic(base_size = 14) +
+      theme(axis.text = element_text(size = 12, face = "bold"))
+  })
+
+
+  ## ---- Scatterplot / Hexbin labels ----
+
+  x_variableLabel <- reactive({
+    var_names_combined$label[var_names_combined$Column == input$covariate1]
+  })
+
   y_variableLabel <- reactive({
-    label <-
-      var_names_combined$label[var_names_combined$Column == input$covariate2]
-    
+    var_names_combined$label[var_names_combined$Column == input$covariate2]
   })
-  
+
+
+  ## ---- Scatterplot ----
+
   output$scatterPlot <- renderPlot({
-    
-    #req(datasetInput1(), input$covariate1, input$covariate2)
-    
-    p <-ggplot(datasetInput1(),aes_string(x = input$covariate1, y = input$covariate2)) +
-      geom_point(alpha = 1 / 5,position = "jitter",size = 3,colour = input$bincolor1) +
-      geom_smooth(method = "lm",se = FALSE,color = "black") +
+    req(plot_data(), input$covariate1, input$covariate2)
+
+    p <- ggplot(plot_data(), aes(x = .data[[input$covariate1]], y = .data[[input$covariate2]])) +
+      geom_point(alpha = 1 / 5, position = "jitter", size = 3, colour = input$bincolor1) +
+      geom_smooth(method = "lm", se = FALSE, color = "black") +
       labs(x = x_variableLabel(), y = y_variableLabel()) +
       theme_classic(base_size = 14) +
       theme(axis.text = element_text(size = 12, face = "bold"))
-    
-    
+
     if (input$addcor) {
-      p <- p + stat_cor(method = "pearson",label.x.npc = 0.71,
-                        label.y.npc = "top",size = 6)
+      p <- p + stat_cor(method = "pearson", label.x.npc = 0.71,
+                         label.y.npc = "top", size = 6)
     }
-    
-    
-    if (input$subset) {
-      
-      # req(subset_data(), input$covariate1, input$covariate2)
-      
-      p <-ggplot(subset_data(),aes_string(x = input$covariate1, y = input$covariate2)) +
-        geom_point(alpha = 1 / 5,position = "jitter",size = 3,colour = input$bincolor1) +
-        geom_smooth(method = "lm",se = FALSE,color = "black") +
-        labs(x = x_variableLabel(), y = y_variableLabel()) +
-        theme_classic(base_size = 14) +
-        theme(axis.text = element_text(size = 12, face = "bold"))
-      
-      
-      if (input$addcor) {
-        p <- p + stat_cor(method = "pearson", label.x.npc = 0.71,
-                          label.y.npc = "top", size = 6)
-      }
-      
-      p
-      
-    }
-    
+
     p
-    
-    
-  })    
-  
-  
-  
-  output$HexbinPlot<-renderPlot({
-    
-    p <- ggplot(datasetInput1(), aes_string(x = input$covariate1, y = input$covariate2))+
-      stat_density2d(geom="tile", aes(fill = ..density..), contour = FALSE) + 
-      geom_point(colour = "white")+
+  })
+
+
+  ## ---- Hexbin ----
+
+  output$HexbinPlot <- renderPlot({
+    req(plot_data(), input$covariate1, input$covariate2)
+
+    ggplot(plot_data(), aes(x = .data[[input$covariate1]], y = .data[[input$covariate2]])) +
+      stat_density2d(geom = "tile", aes(fill = after_stat(density)), contour = FALSE) +
+      geom_point(input$bincolor1) +
       labs(x = x_variableLabel(), y = y_variableLabel()) +
       theme_classic(base_size = 14) +
       theme(axis.text = element_text(size = 12, face = "bold"))
+  })
+
+
+  ## ---- Interactive Map (Scotland-wide) ----
+
+  
+  observe({
+    req(datasetInput2(),input$covariate3 )
+    council_names <- unique(datasetInput2()$Council_area)
+    updateSelectInput(session, "council_map", choices = council_names,
+                      selected = "Glasgow City")
     
+  })
+  
+  variableLabel1 <- reactive({
+    var_names_combined$label[var_names_combined$Column == input$covariate3]
+  })
+  
+  observeEvent(input$show_all_scotland, {
     
-    if (input$subset) {
+    if (input$show_all_scotland) {# when selecting ALL Scotland, issue warning
       
-      p <-ggplot(subset_data(),aes_string(x = input$covariate1, y = input$covariate2)) +
-        stat_density2d(geom="tile", aes(fill = ..density..), contour = FALSE) + 
-        geom_point(colour = "white")+
-        labs(x = x_variableLabel(), y = y_variableLabel()) +
-        theme_classic(base_size = 14) +
-        theme(axis.text = element_text(size = 12, face = "bold"))
-      
-      p
+      sendSweetAlert(
+        session = session,
+        title = "Loading full Scotland",
+        text = "Rendering the full map may take around a minute.",
+        type = "warning"
+      )
       
     }
     
-    p
+  })
+  
+  map_data <- reactive({
+    
+    req(datasetInput2(), input$covariate3)
+    
+    map_dataset <- Scotland_local_auth2016 %>%
+      left_join(datasetInput2(), by = "Data_Zone")
+    
+    if (!input$show_all_scotland) {
+      
+      req(input$council_map)
+      
+      map_dataset <- map_dataset %>%
+        filter(Council_area == input$council_map)
+      
+    }
+    
+    map_dataset
     
   })
- 
- #### Code for the Leaflet Map of Glasgow
-
-output$my_map <- renderLeaflet({
-  #linking csv data with geojson data
-  if(input$cov4=="Population"){x <- countriesGla$Population}
-  if(input$cov4=="Working_Population"){x <- countriesGla$Working_Po}
-  if(input$cov4=="School_Attendance"){x <- countriesGla$School_Att}
-  if(input$cov4=="Alcohol"){x <- countriesGla$Alcohol}
-  if(input$cov4=="Income_Deprived"){x <- countriesGla$Income_Dep}
-  if(input$cov4=="Employment_Deprived"){x <- countriesGla$Employment}
-  if(input$cov4=="Illness"){x <- countriesGla$Illness}
-  if(input$cov4=="Mortality"){x <- countriesGla$Mortality}
-  if(input$cov4=="Drugs"){x <- countriesGla$Drugs}
-  if(input$cov4=="Depress"){x <- countriesGla$Depress}
-  if(input$cov4=="lowBW"){x <- countriesGla$lowBW}
-  if(input$cov4=="HospEmer"){x <- countriesGla$HospEmer}
-  if(input$cov4=="NoQuals"){x <- countriesGla$NoQuals}
-  if(input$cov4=="Crime"){x <- countriesGla$Crime}
-  if(input$cov4=="No_heating"){x <- countriesGla$No_heating}
   
-  #color set up
-  colorpal <- reactive({
-    colorNumeric(input$colors,x)
+  
+  output$my_map <- renderLeaflet({
+    
+    req(map_data(), input$covariate3, input$colors)
+    
+    pal <- colorNumeric(input$colors, map_data()[[input$covariate3]])
+    
+    leaflet(map_data()) %>%
+      addProviderTiles("Esri.WorldGrayCanvas",options = tileOptions(minZoom = 6, maxZoom = 16)) %>%
+      addProviderTiles("Esri.WorldImagery", group = "Toner Lite") %>%
+      addProviderTiles("CartoDB.Positron", group = "CartoDB") %>%
+      addLayersControl(baseGroups = c("Grey Canvas","Toner","Toner lite", "CartoDB")) %>%
+      addPolygons(
+        smoothFactor = 0.2,
+        fillColor = ~pal(get(input$covariate3)),
+        fillOpacity = 0.8,
+        color = "lightblue",
+        weight = 1.5,
+        highlight = highlightOptions(weight = 5, color = "#666", fillOpacity = 0, bringToFront = FALSE),
+        label = ~Data_Zone,
+        labelOptions = labelOptions(
+          style = list("font-weight" = "normal", padding = "3px 8px"),
+          textOnly = TRUE, textsize = "15px", direction = "auto"
+        )
+      ) %>%
+      addLegend("bottomright", pal = pal, values = ~get(input$covariate3),
+                title = variableLabel1(), opacity = 0.75)
   })
-  pal <- colorpal()
-  # palette1 <- colorNumeric("Spectral",
-  #                          domain = countriesGla,input$cov4)
-  
-  #using the labels from geojson file
-  labels <- countriesGla$DataZone
-  
-  #plotting the map  
-  leaflet(countriesGla)%>%
-  # map options
-  addProviderTiles("Esri.WorldGrayCanvas", 
-                   options = tileOptions(minZoom=6, maxZoom=16)) %>% 
-  addProviderTiles("Stamen.Toner", group = "Toner") %>%
-  addProviderTiles("Esri.WorldImagery", group = "Toner Lite") %>%
-  addProviderTiles("CartoDB.Positron", group = "CartoDB") %>%
-  addLayersControl(baseGroups = c("Toner Lite", "CartoDB","Toner", "hex"))%>%
-  
-  #adding the shapes for the map and the labels
-  addPolygons(smoothFactor = 0.2, 
-              fillColor = ~pal(x),  
-              fillOpacity = 0.8,  
-              color = "lightblue",    
-              weight = 1.5,
-              highlight = highlightOptions(
-                weight = 5,
-                color = "#666",
-                fillOpacity = 0,
-                bringToFront = FALSE),
-              label = labels,
-              labelOptions = labelOptions(
-                style = list("font-weight" = "normal", padding = "3px 8px"),
-                textOnly = TRUE,
-                textsize = "15px",
-                direction = "auto")) %>%
-  
-   # legent options
-    addLegend("bottomright", pal = pal, values = ~x,
-              title = "Density Levels",
-              labFormat = labelFormat(suffix = " "),
-              opacity = 0.75)
-  })
-
-
 }
 
 # Run the application and enjoy!
