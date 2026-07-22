@@ -70,6 +70,13 @@ Full SIMD documentation and methodology available at
 ```
 SIMD-Shiny-App/
 │
+├── .github/
+|    workflows/
+│      └──r-check.yml       # Checks syntax, lint (coding conventions) & UI/Server matching
+├── www/
+│   ├── Q_Step_logo.png     # Q-Step Programme logo
+│   └── UofG_logo.jpeg      # University of Glasgow logo
+|
 ├── App.R                   # Main Shiny application (UI and server)
 ├── ShinySIMD.Rproj         # RStudio project file
 │
@@ -78,8 +85,7 @@ SIMD-Shiny-App/
 ├── SG_SIMD_2016_1.geojson  # Custom Glasgow boundary file (QGIS-derived)
 ├── data_simdGla.csv        # Processed Glasgow-level data
 │
-├── qstep2.png              # Q-Step Programme logo
-├── university.png.png      # University of Glasgow logo
+├── UI_Server-check.R       # Rscript to check all UI inputs have corresponding Server outputs
 │
 ├── .gitignore
 ├── README.md
@@ -124,6 +130,7 @@ As part of the 2026 update, the codebase underwent a full audit and refactor:
 - **Bug fixes** — resolved several issues including a non-functional interactive map tab, broken theme-switching logic and fragile variable-selection code
 - **Code deduplication** — refactored repeated dataset-selection and variable-update logic into shared helper functions, reducing the codebase by roughly 30% while preserving all functionality
 - **Deprecated package migration** — replaced `rgdal` (retired from CRAN, October 2023) with `sf` throughout
+- **Github Actions** — created various actions for syntax and lint checking and UI/Server consistency, improving workflow
 
 ---
 
