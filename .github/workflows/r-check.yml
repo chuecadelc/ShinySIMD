@@ -3,9 +3,9 @@ name: R Syntax & Lint Check
 # Runs automatically on every push and pull request targeting main
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 jobs:
 
