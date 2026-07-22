@@ -1,4 +1,10 @@
-### SCOTTISH INDEX OF MULTIPLE DEPRIVATION 2016 SHINY APP ## 
+### SCOTTISH INDEX OF MULTIPLE DEPRIVATION SHINY APP ###
+### Author: Dr. Cristina Chueca Del Cerro
+### Originally developed 2017 (Q-Step Programme, University of Glasgow)
+### Updated 2026: new theme, better descriptions, SIMD 2020 dataset,
+### improved visualisations, output downloads, Scotland-wide interactive map
+### ============================================================
+
 ### LIBRARIES REQUIRED ###
 library(tidyverse)
 library(DT)
@@ -19,6 +25,7 @@ library(RColorBrewer)
 library(ggpubr)
 library(shinydashboard)
 library(leaflet)
+library(rmapshaper) # improve leaflet rendering performance
 
 
 ### ============================================================
@@ -69,7 +76,7 @@ var_names <- c(
 )
 
 exclude_vars <- c("Income_rate", "Employment_rate", "crime_count",
-                   "overcrowded_rate", "nocentralheat_rate")
+                  "overcrowded_rate", "nocentralheat_rate")
 
 data_vars <- data_vars %>%
   filter(!Column %in% exclude_vars) %>%
@@ -160,9 +167,18 @@ var_names_combined <- bind_rows(data_vars, data_vars1) %>%
 
 Scotland_local_auth2016 <- read_sf("SG_SIMD_2016_1.geojson")
 
-Scotland_local_auth2016 <- Scotland_local_auth2016 %>%
-  dplyr::select(Data_Zone = DataZone, LAName, Shape_Leng, Shape_Area)
+Scotland_local_auth2016 <- st_transform(Scotland_local_auth2016, crs = 4326)
 
+Scotland_local_auth2016 <- Scotland_local_auth2016 %>%
+  dplyr::select(Data_Zone = DataZone, LAName, Shape_Leng, Shape_Area) %>%
+  ms_simplify(keep = 0.1, keep_shapes = TRUE)
+
+saveRDS(Scotland_local_auth2016,
+        "Scotland_local_auth2016.rds")
+
+Scotland_local_auth2016_revised <- readRDS(
+  "Scotland_local_auth2016.rds"
+)
 
 ## Random selection of 12 colors instead of the 600+ in colors()
 curated_palettes <- c(
@@ -185,11 +201,13 @@ curated_palettes <- c(
 # )
 
 
-ui <- page_navbar(
-  title = "Scottish Index of Multiple Deprivation (SIMD)",
+
+ui <- page_fluid(
   theme = bs_theme(
-    bootswatch = "lux",
-    base_font = '"Georgia", Georgia, serif',
+    # bootswatch = "lux",
+    # base_font = '"Georgia", Georgia, serif',
+    bootswatch = "flatly",
+    base_font = font_google("Source Sans 3"),
     code_font = font_google("JetBrains Mono"),
     bg = "#FFF",
     fg = "#101010",
@@ -197,111 +215,310 @@ ui <- page_navbar(
     secondary = "#FFFFFF",
     success = "#009E73"
   ),
-  nav_spacer(),
-  id = "main_navbar",
 
-  nav_panel(
-    "Information",
-    fluidPage(
-      p("This app uses the Scottish Index of Multiple Deprivation data. You can choose from either the 2016 or 2020 datasets to explore measures of central tendency and relationships between variables, including histograms, scatterplots, and an interactive map of Scotland."),
-      p("The aim of this app is to explain the relationships between variables in the index, obtained from the Scottish Government Data Centre. This app was used for promotional activities of the Q-Step programme across schools in the Greater Glasgow Area and University of Glasgow Open Days."),
-      p("Developed by Dr. Cristina Chueca Del Cerro, under the supervision of Dr. Brian Fogarty and Dr. Niccole Pamphilis in 2017 for the Q-Step programme. Latest update including new theme, visualisations, and Scotland-wide interactive map, Oct 2025."),
-      textAreaInput("story", "Please leave your comments here", rows = 3),
-      br(),
-      br(),
-      tags$img(src = "qstep2.png", height = 110, width = 220),
-      tags$img(src = "university.png", height = 110, width = 250)
+  ##
+  tags$style(
+    HTML(
+      "
+  .simd-header {
+    text-align: center;
+  }
+
+  .nav-link {
+    text-transform: none !important;
+    letter-spacing: normal !important;
+  }
+  "
     )
   ),
 
-  nav_panel(
-    "Summary statistics and visualisation",
-    fluidPage(
-      shinyFeedback::useShinyFeedback(),
-      fluidRow(
-        column(
-          width = 4,
-          radioButtons("dataset", "Choose SIMD Dataset:",
-                       choices = c("2016" = "data_2016", "2020" = "data_2020"),
-                       selected = "data_2016", inline = TRUE),
-          selectInput("selected_var", "Choose a Variable:", choices = NULL),
-          selectInput("bincolor", "Select histogram bars color:",
-                      choices = curated_palettes, selected = "orange2"),
-          sliderInput("bins", "Number of histogram Bins:",
-                      min = 1, max = 50, value = 30),
-          checkboxInput("addmean", "Add Mean line to histogram & desnity plots?", value = FALSE),
-          hr(),
-          h4("Description"),
-          uiOutput("varDescription")
+
+  # ---- Header ----
+
+  div(
+    class = "simd-header px-4 py-3",
+    style = "
+      background:#FFFFFF;
+      border-bottom:4px solid #009E73;
+    ",
+
+    h1("Scottish Index of Multiple Deprivation (SIMD)", class = "mb-1"),
+
+    p(
+      "An interactive exploration of deprivation indicators across Scotland",
+      class = "lead mb-0"
+    )
+  ),
+
+
+  # Navigation
+  navset_bar(
+    id = "main_navbar",
+
+    # navset_tab(
+    nav_panel(
+      "Information",
+      fluidPage(
+        tags$div(style = "margin-bottom: 20px;"),
+
+        h3("Overview"),
+
+        p(
+          "This interactive dashboard enables exploration of the Scottish Index of Multiple Deprivation (SIMD)
+      across the 2016 and 2020 releases. Users can investigate patterns of deprivation across Scotland
+      through summary statistics, interactive visualisations and geographical patterns using an interactive map."
         ),
-        column(
-          width = 8,
-          navset_card_underline(
-            nav_panel("Histogram", plotOutput("HistPlot", height = "300px")),
-            nav_panel("Density", plotOutput("DensityPlot", height = "300px")),
-            nav_panel("Boxplot", plotOutput("BoxPlot", height = "300px"))
-          ),
-          h4("Summary Statistics"),
-          DTOutput("summaryStats")
+
+        tags$div(style = "margin-bottom: 20px;"),
+
+
+        h3("About the project"),
+
+        p(
+          "I developed RShiny app this part of a Q-Step internship in 2017 under the supervision of Dr. Brian Fogarty and
+         Dr. Niccole Pamphilis. It was originally created to support outreach
+         activities for the Q-Step Centre at the University of Glasgow, helping prospective students
+         and schools explore deprivation data through an accessible and interactive interface."
+        ),
+
+        tags$div(style = "margin-bottom: 20px;"),
+
+
+        layout_column_wrap(
+          width = 1 / 2,
+
+          card(card_header(h3("Features")), card_body(
+            tags$ul(
+              tags$li(
+                tags$strong("Summary statistics and indicator visualisations: "),
+                "Explore individual SIMD indicators through customisable histogram,
+                density plot and boxplot (compares both datasets).
+                View descriptive statistics (mean, median, standard deviation and
+                Gini coefficient) access variable descriptions and customise plots."
+              ),
+
+              tags$li(
+                tags$strong("Exploring relationships between indicators: "),
+                "Compare two SIMD indicators using an interactive scatterplot and hexbin.
+                Calculate variable correlations and simple linear regression.
+                Filter observations by Council too."
+              ),
+
+              tags$li(
+                tags$strong("Interactive deprivation mapping: "),
+                "Explore deprivation patterns across Scottish data zones using an
+               interactive map. Select between dataset, Council areas and indicators
+               while viewing corresponding descriptions."
+              ),
+
+              tags$li(
+                tags$strong("Data and visualisation exports: "),
+                "Download the underlying SIMD datasets and summary outputs used within
+                 the application. Export visualisations generated during analysis."
+              )
+
+
+            )
+          )),
+
+
+          card(card_header(h3(
+            "What's new in this update"
+          )), card_body(
+            tags$ul(
+              tags$li(
+                tags$strong("Redesigned interface: "),
+                "A refreshed interface with a more polished and accessible user
+                experience, including revised information tab and improved descriptions."
+              ),
+
+              tags$li(
+                tags$strong("SIMD 2020 integration: "),
+                "The 2020 dataset has been added alongside the original 2016 release,
+                 enabling direct comparison between the two most recent SIMD publications."
+              ),
+
+              tags$li(
+                tags$strong("Data exports: "),
+                "Dataset, summary outputs and visualisations available for download."
+              ),
+
+              tags$li(
+                tags$strong("Expanded visualisations: "),
+                "Additional functionality supports both single-variable exploration
+                 and comparisons between multiple indicators"
+              ),
+              tags$li(
+                tags$strong("Scotland-wide interactive mapping: "),
+                "The map has been expanded from Glasgow City Council to cover Scotland
+                 using Local Authority boundaries."
+              ),
+
+            )
+          ))
+        ),
+
+        tags$div(style = "margin-bottom: 20px;"),
+
+        h3("Data access"),
+
+        p(
+          "Additional information about the SIMD methodology, indicators and data releases is
+        available from the Scottish Government. Either dataset used in this app can be downloaded below."
+        ),
+
+        div(
+          class = "d-flex gap-3 mt-3",
+
+          downloadButton("download_2016simd", "Download 2016 SIMD dataset", class = "btn-primary"),
+          downloadButton("download_2020simd", "Download 2020 SIMD dataset", class = "btn-primary"),
+
+          tags$a(
+            href = "https://www.gov.scot/collections/scottish-index-of-multiple-deprivation-2020/",
+            target = "_blank",
+            class = "btn",
+            style = "
+           color:#009E73;
+           border:1px solid #009E73;
+           text-decoration:none;
+           display:inline-block;
+          ",
+            "View SIMD documentation"
+          )
+        ),
+        tags$div(style = "margin-bottom: 20px;"),
+
+        div(
+          style = "text-align:center;
+        margin-top:50px;
+        ",
+
+          img(src = "QStep_logo", height = "90px", ),
+
+          img(src = "UofGlasgow_logo", height = "90px")
+        )
+        ,
+
+        tags$footer(
+          style = "text-align: center; padding: 20px; color: #888; font-size: 13px;",
+          "Built by Dr. Cristina Chueca Del Cerro | ",
+          tags$a(href = "https://github.com/chuecadelc", "GitHub"),
+          " | ",
+          tags$a(href = "https://chuecadelc.github.io/", "Portfolio")
         )
       )
-    )
-  ),
+    ),
 
-  nav_panel(
-    "Variable Relationship Exploration",
-    fluidPage(
-      fluidRow(
-        column(
-          4,
-          radioButtons("dataset1", "Choose SIMD Dataset:",
-                       choices = c("2016" = "data_2016", "2020" = "data_2020"),
-                       selected = "data_2016", inline = TRUE),
-          selectInput("covariate1", "X-Axis", choices = NULL),
-          selectInput("covariate2", "Y-Axis", choices = NULL),
-          checkboxInput("subset", "Subset the data for a specific Council area only?", FALSE),
-          conditionalPanel(
-            condition = "input.subset == true",
-            selectInput("subset_council", "Select Council area:", choices = NULL)
+    nav_panel(
+      "Summary statistics and visualisation",
+      fluidPage(
+        shinyFeedback::useShinyFeedback(),
+        fluidRow(
+          column(
+            width = 4,
+            radioButtons(
+              "dataset",
+              "Choose SIMD Dataset:",
+              choices = c("2016" = "data_2016", "2020" = "data_2020"),
+              selected = "data_2016",
+              inline = TRUE
+            ),
+            selectInput("selected_var", "Choose a Variable:", choices = NULL),
+            selectInput(
+              "bincolor",
+              "Select histogram bars color:",
+              choices = curated_palettes,
+              selected = "orange2"
+            ),
+            sliderInput(
+              "bins",
+              "Number of histogram Bins:",
+              min = 1,
+              max = 50,
+              value = 30
+            ),
+            checkboxInput("addmean", "Add Mean line to histogram & desnity plots?", value = FALSE),
+            hr(),
+            h4("Description"),
+            uiOutput("varDescription")
           ),
-          selectInput("bincolor1", "Color", choices = curated_palettes, selected = "orange2"),
-          checkboxInput("addcor", "Add Pearson's correlation to scatterplot?", FALSE)
-        ),
-        column(
-          width = 8,
-          navset_card_underline(
-            nav_panel("Scatterplot", plotOutput("scatterPlot", height = "400px")),
-            nav_panel("Hexbin", plotOutput("HexbinPlot", height = "400px"))
+          column(
+            width = 8,
+            navset_card_underline(
+              nav_panel("Histogram", plotOutput("HistPlot", height = "300px")),
+              nav_panel("Density", plotOutput("DensityPlot", height = "300px")),
+              nav_panel("Boxplot", plotOutput("BoxPlot", height = "300px"))
+            ),
+            h4("Summary Statistics"),
+            DTOutput("summaryStats"),
+            downloadButton("download_summary", "Download summary table (CSV)")
           )
         )
       )
-    )
-  ),
-   nav_panel(
-    "Interactive Map of Deprivation",
-    fluidPage(
-      fluidRow(
-        column(
-          4,
-          radioButtons("dataset2", "Choose SIMD Dataset:",
-                       choices = c("2016" = "data_2016", "2020" = "data_2020"),
-                       selected = "data_2016", inline = TRUE),
-          selectInput("covariate3", "Variable", choices = NULL),
-          checkboxInput("show_all_scotland", "Show the full map of Scotland?", FALSE),
-          conditionalPanel(
-            condition = "!input.show_all_scotland",
-            selectInput("council_map", "Select Council area:", choices = NULL)
-          ),
-          selectInput("colors", "Color Scheme",
-                      rownames(subset(brewer.pal.info, category %in% c("seq", "div")))),
-          h4("Variable Description"),
-          uiOutput("varDescription")
+    ),
+
+    nav_panel("Variable Relationship Exploration", fluidPage(fluidRow(
+      column(
+        4,
+        radioButtons(
+          "dataset1",
+          "Choose SIMD Dataset:",
+          choices = c("2016" = "data_2016", "2020" = "data_2020"),
+          selected = "data_2016",
+          inline = TRUE
         ),
-        column(8, leafletOutput("my_map", width = "100%", height = 600))
-      )
-    )
+        selectInput("covariate1", "X-Axis", choices = NULL),
+        selectInput("covariate2", "Y-Axis", choices = NULL),
+        checkboxInput("subset", "Subset the data for a specific Council area only?", FALSE),
+        conditionalPanel(
+          condition = "input.subset == true",
+          selectInput("subset_council", "Select Council area:", choices = NULL)
+        ),
+        selectInput(
+          "bincolor1",
+          "Color",
+          choices = curated_palettes,
+          selected = "orange2"
+        ),
+        checkboxInput("addcor", "Add Pearson's correlation to scatterplot?", FALSE)
+      ),
+      column(width = 8, navset_card_underline(
+        nav_panel("Scatterplot", plotOutput("scatterPlot", height = "400px")),
+        nav_panel("Hexbin", plotOutput("HexbinPlot", height = "400px"))
+      ))
+    ))),
+
+    nav_panel("Interactive Map of Deprivation", fluidPage(fluidRow(
+      column(
+        4,
+        radioButtons(
+          "dataset2",
+          "Choose SIMD Dataset:",
+          choices = c("2016" = "data_2016", "2020" = "data_2020"),
+          selected = "data_2016",
+          inline = TRUE
+        ),
+        selectInput("covariate3", "Variable", choices = NULL),
+        checkboxInput("show_all_scotland", "Show the full map of Scotland?", FALSE),
+        conditionalPanel(
+          condition = "!input.show_all_scotland",
+          selectInput("council_map", "Select Council area:", choices = NULL)
+        ),
+        selectInput("colors", "Color Scheme", rownames(subset(
+          brewer.pal.info, category %in% c("seq", "div")
+        ))),
+        h4("Variable Description"),
+        uiOutput("varDescription")
+      ),
+      column(8, leafletOutput(
+        "my_map", width = "100%", height = 600
+      ))
+    )))
   )
+  #)
 )
+
+
 
 ### ============================================================
 ### SERVER
@@ -313,7 +530,7 @@ server <- function(input, output, session) {
   # observe(session$setCurrentTheme(
   #   if (isTRUE(input$dark_mode)) dark else light
   # ))
-  
+
   ## ---- Dataset selection helper ----
   # Replaces three near-identical if/else blocks with one shared function
 
@@ -325,20 +542,36 @@ server <- function(input, output, session) {
   datasetInput1 <- reactive({ get_dataset(input$dataset1) })
   datasetInput2 <- reactive({ get_dataset(input$dataset2) })
 
+  ## ---- Download selected SIMD dataset ----
+
+
+  output$download_data_2016 <- downloadHandler(
+    filename = function() "SIMD_2016_data.csv",
+    content = function(file) {
+      write.csv(data_2016, file, row.names = FALSE)
+    }
+  )
+
+  output$download_data_2020 <- downloadHandler(
+    filename = function() "SIMD_2020_data.csv",
+    content = function(file) {
+      write.csv(data_2020, file, row.names = FALSE)
+    }
+  )
 
   ## ---- Variable choice update helper ----
-  
+
   # Replaces three near-identical observeEvent blocks
-  
+
 
   # Displays reader-friendly labels while selecting the equivalent col from df.
-  
+
   get_labelled_choices <- function(dataset) {
     col_names <- names(dataset)[4:length(names(dataset))]
     labels <- var_names_combined$label[match(col_names, var_names_combined$Column)]
     setNames(col_names, labels)
   }
-  
+
 
   update_var_choices <- function(session, dataset, input_id, selected_index = 1) {
     choices <- get_labelled_choices(dataset)
@@ -364,7 +597,7 @@ server <- function(input, output, session) {
 
 
   ## ---- Council area choices ----
-  
+
   observe({
     req(datasetInput1())
     council_names <- datasetInput1()$Council_area %>%
@@ -374,7 +607,7 @@ server <- function(input, output, session) {
     updateSelectInput(session, inputId = "subset_council",
                       choices = council_names, selected = council_names[1])
   })
-  
+
   observe({
     req(datasetInput2())
     council_names <- datasetInput2()$Council_area %>%
@@ -384,8 +617,8 @@ server <- function(input, output, session) {
     updateSelectInput(session, inputId = "subset_council_map",
                       choices = council_names, selected = council_names[1])
   })
-  
-  
+
+
   subset_data <- reactive({
     req(datasetInput1())
     data <- datasetInput1()
@@ -395,7 +628,7 @@ server <- function(input, output, session) {
     }
     data
   })
-  
+
 
   # Data actually used for scatter/hexbin plots -- avoids duplicating
   # the subset vs full-data branch inside every plot renderer
@@ -570,61 +803,61 @@ server <- function(input, output, session) {
 
   ## ---- Interactive Map (Scotland-wide) ----
 
-  
+
   observe({
     req(datasetInput2(),input$covariate3 )
     council_names <- unique(datasetInput2()$Council_area)
     updateSelectInput(session, "council_map", choices = council_names,
                       selected = "Glasgow City")
-    
+
   })
-  
+
   variableLabel1 <- reactive({
     var_names_combined$label[var_names_combined$Column == input$covariate3]
   })
-  
+
   observeEvent(input$show_all_scotland, {
-    
+
     if (input$show_all_scotland) {# when selecting ALL Scotland, issue warning
-      
+
       sendSweetAlert(
         session = session,
         title = "Loading full Scotland",
         text = "Rendering the full map may take around a minute.",
         type = "warning"
       )
-      
+
     }
-    
+
   })
-  
+
   map_data <- reactive({
-    
+
     req(datasetInput2(), input$covariate3)
-    
+
     map_dataset <- Scotland_local_auth2016 %>%
       left_join(datasetInput2(), by = "Data_Zone")
-    
+
     if (!input$show_all_scotland) {
-      
+
       req(input$council_map)
-      
+
       map_dataset <- map_dataset %>%
         filter(Council_area == input$council_map)
-      
+
     }
-    
+
     map_dataset
-    
+
   })
-  
-  
+
+
   output$my_map <- renderLeaflet({
-    
+
     req(map_data(), input$covariate3, input$colors)
-    
+
     pal <- colorNumeric(input$colors, map_data()[[input$covariate3]])
-    
+
     leaflet(map_data()) %>%
       addProviderTiles("Esri.WorldGrayCanvas",options = tileOptions(minZoom = 6, maxZoom = 16)) %>%
       addProviderTiles("Esri.WorldImagery", group = "Toner Lite") %>%
