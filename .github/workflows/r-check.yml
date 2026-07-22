@@ -1,6 +1,6 @@
 name: R Syntax & Lint Check
 
-# Runs automatically on every push and pull request targeting main
+# Runs automatically on every push and pull request targeting master
 on:
   push:
     branches: [master]
@@ -42,11 +42,19 @@ jobs:
           }
 
           if (length(errors) > 0) {
-            cat("Syntax errors found:\n")
-            cat(paste(errors, collapse = "\n"))
+            cat("============================================================\n")
+            cat("SYNTAX CHECK FAILED\n")
+            cat("============================================================\n")
+            cat("The following R file(s) contain syntax errors and could not be parsed:\n\n")
+            cat(paste0("  - ", errors), sep = "\n")
+            cat("\n\nBuild failed because one or more R files contain invalid syntax.\n")
             quit(status = 1)
           } else {
-            cat("All R files parsed successfully -- no syntax errors found.\n")
+            cat("============================================================\n")
+            cat("SYNTAX CHECK PASSED\n")
+            cat("============================================================\n")
+            cat("Checked ", length(r_files), " R file(s).\n", sep = "")
+            cat("No syntax errors found.\n")
           }
         shell: Rscript {0}
 
