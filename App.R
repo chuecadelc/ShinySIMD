@@ -465,7 +465,29 @@ ui <- page_fluid(
             ),
             h4("Summary Statistics"),
             DTOutput("summaryStats"),
-            downloadButton("download_summary", "Download summary table (CSV)")
+            downloadButton("download_summary", "Download summary table (CSV)"),
+
+            br(),
+
+            fluidRow(
+              column(
+                width = 12,
+                card(
+                  card_header(h4("Ranked Data Zones", style = "margin: 0;")),
+                  fluidRow(
+                    column(4, radioButtons("rank_order", "Show:",
+                                           choices = c("Highest values" = "Highest",
+                                                       "Lowest values" = "Lowest"),
+                                           inline = TRUE)),
+                    column(4, sliderInput("rank_n", "Number of areas to show:",
+                                          min = 5, max = 50, value = 10)),
+                    column(4, downloadButton("download_ranked", "Download ranked table (CSV)"),
+                           style = "padding-top: 25px;")
+                  ),
+                  DTOutput("rankedTable")
+                  )
+               )
+            )
           )
         )
       )
@@ -501,10 +523,10 @@ ui <- page_fluid(
         nav_panel("Scatterplot",
                   plotOutput("scatterPlot", height = "400px"),
                   checkboxInput("addcor", "Add Pearson's correlation?", FALSE),
-                  ),
+                  downloadButton("download_scatter", "Download plot")),
         nav_panel("Hexbin",
                   plotOutput("HexbinPlot", height = "400px"),
-                  )
+                  downloadButton("download_hexbin", "Download plot"))
       ))
     ))),
 
@@ -564,14 +586,14 @@ server <- function(input, output, session) {
   ## ---- Download selected SIMD dataset ----
 
 
-  output$download_data_2016 <- downloadHandler(
+  output$download_2016simd <- downloadHandler(
     filename = function() "SIMD_2016_data.csv",
     content = function(file) {
       write.csv(data_2016, file, row.names = FALSE)
     }
   )
 
-  output$download_data_2020 <- downloadHandler(
+  output$download_2020simd <- downloadHandler(
     filename = function() "SIMD_2020_data.csv",
     content = function(file) {
       write.csv(data_2020, file, row.names = FALSE)
@@ -738,14 +760,12 @@ server <- function(input, output, session) {
 
   ## ---- Download plot ----
 
-  output$HistPlot <- renderPlot({ histPlot() })
-
   output$download_hist <- downloadHandler(
     filename = function() paste0("histogram_", input$selected_var, ".png"),
     content = function(file) {
-      ggsave(file, plot = histPlot(), width = 8, height = 5, dpi = 300)
+      ggsave(file, plot = HistPlot(), width = 8, height = 5, dpi = 300)
     }
-  )
+
 
   ## ---- Density plot ----
 
@@ -769,12 +789,10 @@ server <- function(input, output, session) {
 
   ## ---- Download plot ----
 
-  output$DensityPlot <- renderPlot({ densityPlot() })
-
   output$download_density <- downloadHandler(
     filename = function() paste0("density_", input$selected_var, ".png"),
     content = function(file) {
-      ggsave(file, plot = densityPlot(), width = 8, height = 5, dpi = 300)
+      ggsave(file, plot = DensityPlot(), width = 8, height = 5, dpi = 300)
     }
   )
 
@@ -810,13 +828,11 @@ server <- function(input, output, session) {
   })
 
   ## ---- Download plot ----
-  output$BoxPlot <- renderPlot({ boxPlot() })
 
   output$download_boxplot <- downloadHandler(
     filename = function() paste0("boxplot_", input$selected_var, ".png"),
     content = function(file) {
-      req(boxPlot())
-      ggsave(file, plot = boxPlot(), width = 8, height = 5, dpi = 300)
+      ggsave(file, plot = BoxPlot(), width = 8, height = 5, dpi = 300)
     }
   )
 
@@ -898,10 +914,21 @@ server <- function(input, output, session) {
     p
   })
 
+  ## ---- Download plot ----
+
+  output$download_scatter <- downloadHandler(
+    filename = function() paste0("scatterplot_", input$covariate1, "_vs_", input$covariate2),
+    content = function(file) {
+      ggsave(filename = paste0(file, ".jpeg"), plot = scatterPlot(), width = 8, height = 6, dpi = 300)
+    }
+  )
+
+
 
   ## ---- Hexbin ----
 
   output$HexbinPlot <- renderPlot({
+
     req(plot_data(), input$covariate1, input$covariate2)
 
     ggplot(plot_data(), aes(x = .data[[input$covariate1]], y = .data[[input$covariate2]])) +
@@ -913,6 +940,14 @@ server <- function(input, output, session) {
   })
 
 
+  ## ---- Donwload plot ----
+
+  output$download_hexbin <- downloadHandler(
+    filename = function() paste0("hexbin_", input$covariate1, "_vs_", input$covariate2, ".png"),
+    content = function(file) {
+      ggsave(file, plot = hexbinPlot(), width = 8, height = 6, dpi = 300)
+    }
+  )
 
 
   ## ---- Interactive Map (Scotland-wide) ----
