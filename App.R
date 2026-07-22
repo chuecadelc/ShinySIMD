@@ -436,7 +436,6 @@ ui <- page_fluid(
               max = 50,
               value = 30
             ),
-            checkboxInput("addmean", "Add Mean line to histogram & desnity plots?", value = FALSE),
             hr(),
             h4("Description"),
             uiOutput("varDescription")
@@ -444,9 +443,25 @@ ui <- page_fluid(
           column(
             width = 8,
             navset_card_underline(
-              nav_panel("Histogram", plotOutput("HistPlot", height = "300px")),
-              nav_panel("Density", plotOutput("DensityPlot", height = "300px")),
-              nav_panel("Boxplot", plotOutput("BoxPlot", height = "300px"))
+              nav_panel(
+                "Histogram",
+                plotOutput("HistPlot", height = "300px"),
+                checkboxInput("addmean_hist", "Add mean line?", value = FALSE),
+                downloadButton("download_hist", "Download plot")
+              ),
+
+              nav_panel(
+                "Density",
+                plotOutput("DensityPlot", height = "300px"),
+                checkboxInput("addmean_density", "Add mean line?", value = FALSE),
+                downloadButton("download_density", "Download plot")
+              ),
+
+              nav_panel(
+                "Boxplot",
+                plotOutput("BoxPlot", height = "300px"),
+                downloadButton("download_boxplot", "Download plot")
+              )
             ),
             h4("Summary Statistics"),
             DTOutput("summaryStats"),
@@ -516,7 +531,6 @@ ui <- page_fluid(
   )
   #)
 )
-
 
 
 ### ============================================================
@@ -641,8 +655,11 @@ server <- function(input, output, session) {
   output$summaryStats <- DT::renderDataTable({
     req(datasetInput(), input$selected_var)
 
+    dataset_label <- if (input$dataset == "data_2020") "SIMD 2020" else "SIMD 2016"
+
     table_df <- datasetInput() %>%
       dplyr::summarise(
+        Dataset = dataset_label,
         Mean = round(mean(.data[[input$selected_var]], na.rm = TRUE), 3),
         Median = round(median(.data[[input$selected_var]], na.rm = TRUE), 3),
         `Std. Dev` = round(sd(.data[[input$selected_var]], na.rm = TRUE), 3),
@@ -663,6 +680,18 @@ server <- function(input, output, session) {
     )
   })
 
+  ## ---- Download table stats ----
+
+
+  output$download_summary <- downloadHandler(
+    filename = function() {
+      year_label <- if (input$dataset == "data_2020") "2020" else "2016"
+      paste0("summary_stats_", input$selected_var, "_", year_label, ".csv")
+    },
+    content = function(file) {
+      write.csv(summaryStatsData(), file, row.names = FALSE)
+    }
+  )
 
   ## ---- Variable description ----
 
@@ -693,7 +722,7 @@ server <- function(input, output, session) {
       theme_classic(base_size = 14) +
       theme(axis.text = element_text(size = 12, face = "bold"))
 
-    if (input$addmean) {
+    if (input$addmean_hist) {
       mean_val <- mean(datasetInput()[[input$selected_var]], na.rm = TRUE)
       p <- p + geom_vline(xintercept = mean_val, lwd = 1, lty = 2)
     }
@@ -713,7 +742,7 @@ server <- function(input, output, session) {
       theme_classic(base_size = 14) +
       theme(axis.text = element_text(size = 12, face = "bold"))
 
-    if (input$addmean) {
+    if (input$addmean_density) {
       mean_val <- mean(datasetInput()[[input$selected_var]], na.rm = TRUE)
       p <- p + geom_vline(xintercept = mean_val, lwd = 1, lty = 2)
     }
@@ -753,6 +782,38 @@ server <- function(input, output, session) {
       theme(axis.text = element_text(size = 12, face = "bold"))
   })
 
+  ## ---- Ranked Data Zones ----
+
+  rankedData <- reactive({
+    req(datasetInput(), input$selected_var, input$rank_n, input$rank_order)
+
+    df <- datasetInput() %>%
+      dplyr::select(Data_Zone, Council_area, Value = all_of(input$selected_var))
+
+    df <- if (input$rank_order == "Highest") {
+      df %>% arrange(desc(Value))
+    } else {
+      df %>% arrange(Value)
+    }
+
+    head(df, input$rank_n)
+  })
+
+  output$rankedTable <- DT::renderDataTable({
+    df <- rankedData()
+    names(df)[names(df) == "Value"] <- variableLabel()
+
+    DT::datatable(df, rownames = FALSE, options = list(dom = "t", pageLength = 50))
+  })
+
+  output$download_ranked <- downloadHandler(
+    filename = function() paste0("ranked_", input$rank_order, "_", input$selected_var, ".csv"),
+    content = function(file) {
+      df <- rankedData()
+      names(df)[names(df) == "Value"] <- variableLabel()
+      write.csv(df, file, row.names = FALSE)
+    }
+  )
 
   ## ---- Scatterplot / Hexbin labels ----
 
@@ -800,6 +861,8 @@ server <- function(input, output, session) {
   })
 
 
+
+
   ## ---- Interactive Map (Scotland-wide) ----
 
 
@@ -829,6 +892,7 @@ server <- function(input, output, session) {
     }
 
   })
+
 
   map_data <- reactive({
 
