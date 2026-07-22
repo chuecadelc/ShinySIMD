@@ -494,11 +494,17 @@ ui <- page_fluid(
           choices = curated_palettes,
           selected = "orange2"
         ),
-        checkboxInput("addcor", "Add Pearson's correlation to scatterplot?", FALSE)
+        h4("Variable Description"),
+        uiOutput("varDescription2")
       ),
       column(width = 8, navset_card_underline(
-        nav_panel("Scatterplot", plotOutput("scatterPlot", height = "400px")),
-        nav_panel("Hexbin", plotOutput("HexbinPlot", height = "400px"))
+        nav_panel("Scatterplot",
+                  plotOutput("scatterPlot", height = "400px"),
+                  checkboxInput("addcor", "Add Pearson's correlation?", FALSE),
+                  ),
+        nav_panel("Hexbin",
+                  plotOutput("HexbinPlot", height = "400px"),
+                  )
       ))
     ))),
 
@@ -522,7 +528,7 @@ ui <- page_fluid(
           brewer.pal.info, category %in% c("seq", "div")
         ))),
         h4("Variable Description"),
-        uiOutput("varDescription")
+        uiOutput("varDescription3")
       ),
       column(8, leafletOutput(
         "my_map", width = "100%", height = 600
@@ -730,6 +736,16 @@ server <- function(input, output, session) {
     p
   })
 
+  ## ---- Download plot ----
+
+  output$HistPlot <- renderPlot({ histPlot() })
+
+  output$download_hist <- downloadHandler(
+    filename = function() paste0("histogram_", input$selected_var, ".png"),
+    content = function(file) {
+      ggsave(file, plot = histPlot(), width = 8, height = 5, dpi = 300)
+    }
+  )
 
   ## ---- Density plot ----
 
@@ -750,6 +766,17 @@ server <- function(input, output, session) {
     p
   })
 
+
+  ## ---- Download plot ----
+
+  output$DensityPlot <- renderPlot({ densityPlot() })
+
+  output$download_density <- downloadHandler(
+    filename = function() paste0("density_", input$selected_var, ".png"),
+    content = function(file) {
+      ggsave(file, plot = densityPlot(), width = 8, height = 5, dpi = 300)
+    }
+  )
 
   ## ---- Boxplot (2016 vs 2020 comparison) ----
 
@@ -781,6 +808,17 @@ server <- function(input, output, session) {
       theme_classic(base_size = 14) +
       theme(axis.text = element_text(size = 12, face = "bold"))
   })
+
+  ## ---- Download plot ----
+  output$BoxPlot <- renderPlot({ boxPlot() })
+
+  output$download_boxplot <- downloadHandler(
+    filename = function() paste0("boxplot_", input$selected_var, ".png"),
+    content = function(file) {
+      req(boxPlot())
+      ggsave(file, plot = boxPlot(), width = 8, height = 5, dpi = 300)
+    }
+  )
 
   ## ---- Ranked Data Zones ----
 
@@ -814,6 +852,20 @@ server <- function(input, output, session) {
       write.csv(df, file, row.names = FALSE)
     }
   )
+
+  ## ---- Variable description for Bivariate tab ---
+
+  output$varDescription2 <- renderUI({
+    req(input$covariate2)
+    var_info <- var_names_combined %>% filter(Column == input$covariate2)
+
+    tagList(
+      tags$p(tags$strong("Variable:"), var_info$label),
+      tags$p(tags$strong("Indicator Type:"), var_info$`Indicator type`),
+      tags$p(tags$strong("Description:"), var_info$Description)
+    )
+  })
+
 
   ## ---- Scatterplot / Hexbin labels ----
 
@@ -873,6 +925,19 @@ server <- function(input, output, session) {
                       selected = "Glasgow City")
 
   })
+
+  # Variable description for reference
+  output$varDescription3 <- renderUI({
+    req(input$covariate3)
+    var_info <- var_names_combined %>% filter(Column == input$covariate3)
+
+    tagList(
+      tags$p(tags$strong("Variable:"), var_info$label),
+      tags$p(tags$strong("Indicator Type:"), var_info$`Indicator type`),
+      tags$p(tags$strong("Description:"), var_info$Description)
+    )
+  })
+
 
   variableLabel1 <- reactive({
     var_names_combined$label[var_names_combined$Column == input$covariate3]
