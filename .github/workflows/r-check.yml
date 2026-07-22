@@ -23,9 +23,6 @@ jobs:
       - name: Set up R
         uses: r-lib/actions/setup-r@v2
 
-      - name: Check UI/server output IDs
-        run: Rscript UI_Server-check.R
-
       - name: Check all R files parse without syntax errors
         run: |
           r_files <- list.files(".", pattern = "\\.R$", recursive = TRUE, full.names = TRUE)
@@ -91,3 +88,21 @@ jobs:
             cat("No lint issues found.\n")
           }
         shell: Rscript {0}
+
+  # ------------------------------------------------------------
+  # JOB 3: UI/Server Check
+  # Verifies that every output-producing UI element
+  # has a corresponding server-side & there are no orphans.
+  # ------------------------------------------------------------
+  UIServer-check: 
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check UI/server output IDs
+      run: Rscript UI_Server-check.R 
+
+    - name: Set up R
+      uses: r-lib/actions/setup-r@v2
+
+    - name: Check UI/server output IDs
+      run: Rscript UI_Server-check.R
+      
