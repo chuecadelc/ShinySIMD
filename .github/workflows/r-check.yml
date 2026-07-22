@@ -1,0 +1,82 @@
+name: R Syntax & Lint Check
+
+# Runs automatically on every push and pull request targeting main
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+
+  # ------------------------------------------------------------
+  # JOB 1: Syntax check
+  # Fast, no package installation needed -- just confirms every
+  # .R file in the repo can be parsed without a syntax error
+  # ------------------------------------------------------------
+  syntax-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up R
+        uses: r-lib/actions/setup-r@v2
+
+      - name: Check all R files parse without syntax errors
+        run: |
+          r_files <- list.files(".", pattern = "\\.R$", recursive = TRUE, full.names = TRUE)
+          errors <- character(0)
+
+          for (f in r_files) {
+            result <- tryCatch({
+              parse(f)
+              NULL
+            }, error = function(e) {
+              conditionMessage(e)
+            })
+
+            if (!is.null(result)) {
+              errors <- c(errors, paste0(f, ": ", result))
+            }
+          }
+
+          if (length(errors) > 0) {
+            cat("Syntax errors found:\n")
+            cat(paste(errors, collapse = "\n"))
+            quit(status = 1)
+          } else {
+            cat("All R files parsed successfully -- no syntax errors found.\n")
+          }
+        shell: Rscript {0}
+
+  # ------------------------------------------------------------
+  # JOB 2: Lint check
+  # Catches style issues and common bug patterns (unused variables,
+  # inconsistent assignment operators, overly long lines, etc.)
+  # Runs independently of the syntax check above
+  # ------------------------------------------------------------
+  lint-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up R
+        uses: r-lib/actions/setup-r@v2
+
+      - name: Install lintr
+        run: install.packages("lintr")
+        shell: Rscript {0}
+
+      - name: Run lint checks
+        run: |
+          lints <- lintr::lint_dir(".")
+          print(lints)
+
+          if (length(lints) > 0) {
+            cat("\nLintr found", length(lints), "issue(s). Review above -- this does not fail the build.\n")
+          } else {
+            cat("No lint issues found.\n")
+          }
+        shell: Rscript {0}
