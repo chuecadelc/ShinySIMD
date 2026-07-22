@@ -10,6 +10,7 @@ library(tidyverse)
 library(DT)
 library(scales)
 library(ineq)       # for Gini coefficient
+library(broom)      # t-test
 
 # data imports
 library(readxl)
@@ -551,12 +552,14 @@ ui <- page_fluid(
         ))),
         h4("Variable Description"),
         uiOutput("varDescription3"),
-
-
       ),
       column(8, leafletOutput(
         "my_map", width = "100%", height = 600
-             ))
+             )),
+
+      h4("Independent samples t-test"),
+      p("Comparing data zone values for the selected Council area and SIMD indicator"),
+      DTOutput("ttest_output")
         )
       )
     )
@@ -1058,6 +1061,44 @@ server <- function(input, output, session) {
                 title = variableLabel1(), opacity = 0.75)
   })
 
+
+  output$ttest_output <- renderDT({
+
+    req(input$covariate3)
+
+    values_2016 <- data_2016[[input$covariate3]]
+    values_2020 <- data_2020[[input$covariate3]]
+
+    results <- tidy(t.test(values_2016,values_2020,var.equal = FALSE))
+
+    # results <- data.frame(
+    #   Variable = input$covariate3,
+    #   `Mean 2016` = mean_2016,
+    #   `Mean 2020` = mean_2020,
+    #   `Change (2020 - 2016)` = mean_2020 - mean_2016,
+    #   `p-value` = test$p.value,
+    #   `Significant (p < 0.05)` =
+    #     ifelse(test$p.value < 0.05, "Yes", "No"),
+    #   check.names = FALSE
+    # )
+
+
+    DT::datatable(
+      results, selection = "none", rownames = FALSE,
+      class = "table table-primary",
+      options = list(
+        dom = "t", ordering = FALSE,
+        initComplete = JS(
+          "function(settings, json) {",
+          "$(this.api().table().body()).addClass('table-light');",
+          "}"
+        )
+      )
+    )%>%
+      formatRound(columns = which(sapply(results, is.numeric)),digits = 4)
+
+
+  })
 
 }
 
