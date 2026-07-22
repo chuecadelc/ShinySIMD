@@ -765,7 +765,7 @@ server <- function(input, output, session) {
     content = function(file) {
       ggsave(file, plot = HistPlot(), width = 8, height = 5, dpi = 300)
     }
-
+  )
 
   ## ---- Density plot ----
 
