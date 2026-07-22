@@ -550,14 +550,17 @@ ui <- page_fluid(
           brewer.pal.info, category %in% c("seq", "div")
         ))),
         h4("Variable Description"),
-        uiOutput("varDescription3")
+        uiOutput("varDescription3"),
+
+
       ),
       column(8, leafletOutput(
         "my_map", width = "100%", height = 600
-      ))
-    )))
+             ))
+        )
+      )
+    )
   )
-  #)
 )
 
 
@@ -741,7 +744,7 @@ server <- function(input, output, session) {
 
   ## ---- Histogram ----
 
-  output$HistPlot <- renderPlot({
+  HistPlot <- reactive({
     req(datasetInput(), input$selected_var)
 
     p <- ggplot(datasetInput(), aes(x = .data[[input$selected_var]])) +
@@ -760,16 +763,19 @@ server <- function(input, output, session) {
 
   ## ---- Download plot ----
 
+  output$HistPlot <- renderPlot({ HistPlot() })
+
   output$download_hist <- downloadHandler(
-    filename = function() paste0("histogram_", input$selected_var, ".png"),
+    filename = function() paste0("histogram_", input$selected_var, ".jpeg"),
     content = function(file) {
+      req(HistPlot())
       ggsave(file, plot = HistPlot(), width = 8, height = 5, dpi = 300)
     }
   )
 
   ## ---- Density plot ----
 
-  output$DensityPlot <- renderPlot({
+  DensityPlot <- reactive({
     req(datasetInput(), input$selected_var)
 
     p <- ggplot(datasetInput(), aes(x = .data[[input$selected_var]])) +
@@ -789,16 +795,19 @@ server <- function(input, output, session) {
 
   ## ---- Download plot ----
 
+  output$DensityPlot <- renderPlot({ DensityPlot() })
+
   output$download_density <- downloadHandler(
-    filename = function() paste0("density_", input$selected_var, ".png"),
+    filename = function() paste0("density_", input$selected_var, ".jpeg"),
     content = function(file) {
+      req(DensityPlot())
       ggsave(file, plot = DensityPlot(), width = 8, height = 5, dpi = 300)
     }
   )
 
   ## ---- Boxplot (2016 vs 2020 comparison) ----
 
-  output$BoxPlot <- renderPlot({
+  BoxPlot <- reactive({
     req(input$selected_var)
 
     var_in_both <- input$selected_var %in% names(data_2016) &&
@@ -829,8 +838,10 @@ server <- function(input, output, session) {
 
   ## ---- Download plot ----
 
+  output$BoxPlot <- renderPlot({ BoxPlot() })
+
   output$download_boxplot <- downloadHandler(
-    filename = function() paste0("boxplot_", input$selected_var, ".png"),
+    filename = function() paste0("boxplot_", input$selected_var, ".jpeg"),
     content = function(file) {
       ggsave(file, plot = BoxPlot(), width = 8, height = 5, dpi = 300)
     }
@@ -896,7 +907,8 @@ server <- function(input, output, session) {
 
   ## ---- Scatterplot ----
 
-  output$scatterPlot <- renderPlot({
+  scatterPlotObj <- reactive({
+
     req(plot_data(), input$covariate1, input$covariate2)
 
     p <- ggplot(plot_data(), aes(x = .data[[input$covariate1]], y = .data[[input$covariate2]])) +
@@ -908,18 +920,20 @@ server <- function(input, output, session) {
 
     if (input$addcor) {
       p <- p + stat_cor(method = "pearson", label.x.npc = 0.71,
-                         label.y.npc = "top", size = 6)
+                        label.y.npc = "top", size = 6)
     }
 
     p
   })
 
-  ## ---- Download plot ----
+  ## --- Download plot ---
+
+  output$scatterPlot <- renderPlot({ scatterPlotObj() })
 
   output$download_scatter <- downloadHandler(
-    filename = function() paste0("scatterplot_", input$covariate1, "_vs_", input$covariate2),
+    filename = function() paste0("scatterplot_", input$covariate1, "_vs_", input$covariate2, ".jpeg"),
     content = function(file) {
-      ggsave(filename = paste0(file, ".jpeg"), plot = scatterPlot(), width = 8, height = 6, dpi = 300)
+      ggsave(file, plot = scatterPlotObj(), width = 8, height = 6, dpi = 300)
     }
   )
 
@@ -927,13 +941,13 @@ server <- function(input, output, session) {
 
   ## ---- Hexbin ----
 
-  output$HexbinPlot <- renderPlot({
+  HexbinPlot <- reactive({
 
     req(plot_data(), input$covariate1, input$covariate2)
 
     ggplot(plot_data(), aes(x = .data[[input$covariate1]], y = .data[[input$covariate2]])) +
       stat_density2d(geom = "tile", aes(fill = after_stat(density)), contour = FALSE) +
-      geom_point(input$bincolor1) +
+      geom_point(colour = "white") +
       labs(x = x_variableLabel(), y = y_variableLabel()) +
       theme_classic(base_size = 14) +
       theme(axis.text = element_text(size = 12, face = "bold"))
@@ -942,10 +956,12 @@ server <- function(input, output, session) {
 
   ## ---- Donwload plot ----
 
+  output$HexbinPlot <- renderPlot({ HexbinPlot() })
+
   output$download_hexbin <- downloadHandler(
-    filename = function() paste0("hexbin_", input$covariate1, "_vs_", input$covariate2, ".png"),
+    filename = function() paste0("hexbin_", input$covariate1, "_vs_", input$covariate2, ".jpeg"),
     content = function(file) {
-      ggsave(file, plot = hexbinPlot(), width = 8, height = 6, dpi = 300)
+      ggsave(file, plot = HexbinPlot(), width = 8, height = 6, dpi = 300)
     }
   )
 
@@ -992,7 +1008,6 @@ server <- function(input, output, session) {
     }
 
   })
-
 
   map_data <- reactive({
 
@@ -1042,6 +1057,8 @@ server <- function(input, output, session) {
       addLegend("bottomright", pal = pal, values = ~get(input$covariate3),
                 title = variableLabel1(), opacity = 0.75)
   })
+
+
 }
 
 # Run the application and enjoy!
