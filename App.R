@@ -201,7 +201,6 @@ curated_palettes <- c(
 # )
 
 
-
 ui <- page_fluid(
   theme = bs_theme(
     # bootswatch = "lux",
