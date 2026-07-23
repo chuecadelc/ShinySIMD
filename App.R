@@ -473,21 +473,24 @@ ui <- page_fluid(
             fluidRow(
               column(
                 width = 12,
-                card(
-                  card_header(h4("Ranked Data Zones", style = "margin: 0;")),
-                  fluidRow(
-                    column(4, radioButtons("rank_order", "Show:",
-                                           choices = c("Highest values" = "Highest",
-                                                       "Lowest values" = "Lowest"),
-                                           inline = TRUE)),
-                    column(4, sliderInput("rank_n", "Number of areas to show:",
-                                          min = 5, max = 50, value = 10)),
-                    column(4, downloadButton("download_ranked", "Download ranked table (CSV)"),
-                           style = "padding-top: 25px;")
-                  ),
-                  DTOutput("rankedTable")
+                accordion(
+                  open = FALSE,
+                  accordion_panel(
+                    title = "Ranked Data Zones (click to expand)",
+                    fluidRow(
+                      column(3, radioButtons("rank_order", "Show:",
+                                             choices = c("Highest values" = "Highest",
+                                                         "Lowest values" = "Lowest"),
+                                             inline = TRUE)),
+                      column(6, sliderInput("rank_n", "Number of areas to show:",
+                                            min = 5, max = 50, value = 10, width = "100%")),
+                      column(3, downloadButton("download_ranked", "Download ranked table (CSV)"),
+                             style = "padding-top: 25px; text-align: right;")
+                    ),
+                    DTOutput("rankedTable", width = "100%")
                   )
-               )
+                )
+              )
             )
           )
         )
@@ -911,15 +914,22 @@ server <- function(input, output, session) {
   ## ---- Scatterplot ----
 
   scatterPlotObj <- reactive({
-
     req(plot_data(), input$covariate1, input$covariate2)
 
-    p <- ggplot(plot_data(), aes(x = .data[[input$covariate1]], y = .data[[input$covariate2]])) +
-      geom_point(alpha = 1 / 5, position = "jitter", size = 3, colour = input$bincolor1) +
-      geom_smooth(method = "lm", se = FALSE, color = "black") +
+    p <- ggplot(plot_data(), aes(x = .data[[input$covariate1]],
+      y = .data[[input$covariate2]],size = Total_population)) +
+      geom_point(alpha = 0.5, position = "jitter", colour = input$bincolor1) +
+      scale_size(range = c(.1, 5), name = "Population (Thousands)") +
+      geom_smooth(method = "lm", se = FALSE, color = "black",show.legend = FALSE) +
       labs(x = x_variableLabel(), y = y_variableLabel()) +
       theme_classic(base_size = 14) +
-      theme(axis.text = element_text(size = 12, face = "bold"))
+      theme(axis.text = element_text(size = 12, face = "bold")) +
+      guides(size = guide_legend(
+        override.aes = list(
+          shape = 21,
+          fill = input$bincolor1,
+          colour = "black",
+          alpha = 0.5)))
 
     if (input$addcor) {
       p <- p + stat_cor(method = "pearson", label.x.npc = 0.71,
@@ -929,9 +939,7 @@ server <- function(input, output, session) {
     p
   })
 
-  ## --- Download plot ---
-
-  output$scatterPlot <- renderPlot({ scatterPlotObj() })
+  output$scatterPlot <- renderPlot({ scatterPlotObj()})
 
   output$download_scatter <- downloadHandler(
     filename = function() paste0("scatterplot_", input$covariate1, "_vs_", input$covariate2, ".jpeg"),
@@ -948,12 +956,21 @@ server <- function(input, output, session) {
 
     req(plot_data(), input$covariate1, input$covariate2)
 
-    ggplot(plot_data(), aes(x = .data[[input$covariate1]], y = .data[[input$covariate2]])) +
+    ggplot(plot_data(), aes(x = .data[[input$covariate1]], y = .data[[input$covariate2]],
+                            size = Total_population)) +
       stat_density2d(geom = "tile", aes(fill = after_stat(density)), contour = FALSE) +
+      scale_size(range = c(.1, 5), name="Population (Thousands)")+
       geom_point(colour = "white") +
       labs(x = x_variableLabel(), y = y_variableLabel()) +
       theme_classic(base_size = 14) +
-      theme(axis.text = element_text(size = 12, face = "bold"))
+      theme(axis.text = element_text(size = 12, face = "bold"))+
+      guides( size = guide_legend(
+        override.aes = list(
+          shape = 21,
+          fill = input$bincolor1,
+          colour = "black",
+          alpha = 0.5)))
+
   })
 
 
@@ -1070,18 +1087,6 @@ server <- function(input, output, session) {
     values_2020 <- data_2020[[input$covariate3]]
 
     results <- tidy(t.test(values_2016,values_2020,var.equal = FALSE))
-
-    # results <- data.frame(
-    #   Variable = input$covariate3,
-    #   `Mean 2016` = mean_2016,
-    #   `Mean 2020` = mean_2020,
-    #   `Change (2020 - 2016)` = mean_2020 - mean_2016,
-    #   `p-value` = test$p.value,
-    #   `Significant (p < 0.05)` =
-    #     ifelse(test$p.value < 0.05, "Yes", "No"),
-    #   check.names = FALSE
-    # )
-
 
     DT::datatable(
       results, selection = "none", rownames = FALSE,
