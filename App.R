@@ -11,6 +11,10 @@ library(DT)
 library(scales)
 library(ineq)       # for Gini coefficient
 library(broom)      # t-test
+library(plotly)     # enbles text hovering feature
+library(cowplot)    # extract plot legend as object
+#library(hexbin)    # MUST be installed even if you have tidyverse loaded -
+# otherwise no geom_hex()
 
 # data imports
 library(readxl)
@@ -525,14 +529,45 @@ ui <- page_fluid(
       ),
       column(width = 8, navset_card_underline(
         nav_panel("Scatterplot",
-                  plotOutput("scatterPlot", height = "400px"),
+                  fluidRow(
+                    column(9, plotlyOutput("scatterPlot", height = "400px")),
+                    column(3, plotOutput("sizeLegend", height = "400px"))
+                  ),
+                  #plotlyOutput("scatterPlot", height = "400px"),
                   checkboxInput("addcor", "Add Pearson's correlation?", FALSE),
+                  conditionalPanel(
+                    condition = "input.addcor == true",
+                    uiOutput("corText")
+                  ),
                   downloadButton("download_scatter", "Download plot")),
+
         nav_panel("Hexbin",
-                  plotOutput("HexbinPlot", height = "400px"),
+                  fluidRow(
+                     column(width = 6,
+                            selectInput("covariate3","Color by:",choices = NULL)),
+                     column(width = 6,
+                            selectInput("hex_fun", "Summary statistic",
+                            choices = c(
+                              "Mean" = "mean",
+                              "Median" = "median",
+                              "Maximum" = "max",
+                              "Minimum" = "min"),
+                            selected = "mean"))
+                    ),
+                  helpText(
+                    "Note: The hexagons represent clusters of Data Zones.
+                    If you subset the data by Council area only those Data Zone clusters will appear."
+                  ),
+                  fluidRow(
+                    column(9, plotlyOutput("HexbinPlot", height = "400px")),
+                    column(3, plotOutput("HexsizeLegend", height = "400px"))
+                  ),
                   downloadButton("download_hexbin", "Download plot"))
-      ))
-    ))),
+                )
+            )
+          )
+        )
+    ),
 
     nav_panel("Interactive Map of Deprivation", fluidPage(fluidRow(
       column(
@@ -544,7 +579,7 @@ ui <- page_fluid(
           selected = "data_2016",
           inline = TRUE
         ),
-        selectInput("covariate3", "Variable", choices = NULL),
+        selectInput("covariate4", "Variable", choices = NULL),
         checkboxInput("show_all_scotland", "Show the full map of Scotland?", FALSE),
         conditionalPanel(
           condition = "!input.show_all_scotland",
@@ -638,11 +673,12 @@ server <- function(input, output, session) {
     req(datasetInput1())
     update_var_choices(session, datasetInput1(), "covariate1", 1)
     update_var_choices(session, datasetInput1(), "covariate2", 2)
+    update_var_choices(session, datasetInput1(), "covariate3", 3)
   })
 
   observeEvent(input$dataset2, {
     req(datasetInput2())
-    update_var_choices(session, datasetInput2(), "covariate3")
+    update_var_choices(session, datasetInput2(), "covariate4")
   })
 
 
@@ -910,15 +946,21 @@ server <- function(input, output, session) {
     var_names_combined$label[var_names_combined$Column == input$covariate2]
   })
 
+  z_variableLabel <- reactive({
+    var_names_combined$label[var_names_combined$Column == input$covariate3]
+  })
+
 
   ## ---- Scatterplot ----
 
   scatterPlotObj <- reactive({
     req(plot_data(), input$covariate1, input$covariate2)
 
-    p <- ggplot(plot_data(), aes(x = .data[[input$covariate1]],
-      y = .data[[input$covariate2]],size = Total_population)) +
-      geom_point(alpha = 0.5, position = "jitter", colour = input$bincolor1) +
+    ggplot(plot_data(), aes(x = .data[[input$covariate1]],
+                                 y = .data[[input$covariate2]])) + #,size = Total_population
+      geom_point(aes(size = Total_population,
+                     text = paste0(Council_area, " (", Data_Zone, ")")),
+                 alpha = 0.5, position = "jitter", colour = input$bincolor1) +
       scale_size(range = c(.1, 5), name = "Population (Thousands)") +
       geom_smooth(method = "lm", se = FALSE, color = "black",show.legend = FALSE) +
       labs(x = x_variableLabel(), y = y_variableLabel()) +
@@ -931,57 +973,79 @@ server <- function(input, output, session) {
           colour = "black",
           alpha = 0.5)))
 
-    if (input$addcor) {
-      p <- p + stat_cor(method = "pearson", label.x.npc = 0.71,
-                        label.y.npc = "top", size = 6)
-    }
-
-    p
   })
 
-  output$scatterPlot <- renderPlot({ scatterPlotObj()})
+  ## ---- Correlation output ---
+  output$corText <- renderUI({
 
+    req(input$addcor, plot_data(), input$covariate1, input$covariate2)
+
+    cor_test <- cor.test(plot_data()[[input$covariate1]], plot_data()[[input$covariate2]], method = "pearson")
+    r_val <- round(cor_test$estimate, 2)
+    p_label <- if (cor_test$p.value < 0.001) "p < 0.001" else paste0("p = ", signif(cor_test$p.value, 2))
+
+    tags$p(tags$strong("Pearson correlation: "), paste0("R = ", r_val, ", ", p_label))
+  })
+
+  # output$scatterPlot <- renderPlotly({ scatterPlotObj()})
+  output$scatterPlot <- renderPlotly({ ggplotly(scatterPlotObj(), tooltip = "text") })
+
+
+  ## ---- Extracting fig legend ----
+  output$sizeLegend <- renderPlot({
+
+    req(scatterPlotObj())
+    legend <- cowplot::get_legend(scatterPlotObj() + theme(legend.position = "right"))
+    cowplot::ggdraw(legend)
+  })
+
+  ## ---- Download plot ----
   output$download_scatter <- downloadHandler(
     filename = function() paste0("scatterplot_", input$covariate1, "_vs_", input$covariate2, ".jpeg"),
     content = function(file) {
       ggsave(file, plot = scatterPlotObj(), width = 8, height = 6, dpi = 300)
     }
   )
-
-
-
   ## ---- Hexbin ----
 
-  HexbinPlot <- reactive({
+  HexbinPlotObj <- reactive({
 
-    req(plot_data(), input$covariate1, input$covariate2)
+    req(plot_data(), input$covariate1, input$covariate2,input$covariate3,input$hex_fun)
+
+    summary_fun <- switch(input$hex_fun,mean = mean,median = median, max = max,min = min)
+
 
     ggplot(plot_data(), aes(x = .data[[input$covariate1]], y = .data[[input$covariate2]],
-                            size = Total_population)) +
-      stat_density2d(geom = "tile", aes(fill = after_stat(density)), contour = FALSE) +
-      scale_size(range = c(.1, 5), name="Population (Thousands)")+
-      geom_point(colour = "white") +
+                            z = .data[[input$covariate3]]))+ #
+      stat_summary_hex(
+        aes(fill = after_stat(value)),
+        bins = 30,fun = summary_fun,colour = "white",linewidth = 0.2) +
+      scale_fill_viridis_c(direction = -1, name =
+                             paste(tools::toTitleCase(input$hex_fun), z_variableLabel())) +
       labs(x = x_variableLabel(), y = y_variableLabel()) +
       theme_classic(base_size = 14) +
-      theme(axis.text = element_text(size = 12, face = "bold"))+
-      guides( size = guide_legend(
-        override.aes = list(
-          shape = 21,
-          fill = input$bincolor1,
-          colour = "black",
-          alpha = 0.5)))
+      theme(axis.text = element_text(size = 12, face = "bold"),
+            legend.position = "none")
+
 
   })
 
+  ## ---- Extracting fig legend ----
+  output$HexsizeLegend <- renderPlot({
+
+    req(HexbinPlotObj())
+    legend <- cowplot::get_legend(HexbinPlotObj() + theme(legend.position = "right"))
+    cowplot::ggdraw(legend)
+  })
 
   ## ---- Donwload plot ----
 
-  output$HexbinPlot <- renderPlot({ HexbinPlot() })
+  output$HexbinPlot <- renderPlotly({ ggplotly(HexbinPlotObj(), tooltip = "fill") })
 
   output$download_hexbin <- downloadHandler(
     filename = function() paste0("hexbin_", input$covariate1, "_vs_", input$covariate2, ".jpeg"),
     content = function(file) {
-      ggsave(file, plot = HexbinPlot(), width = 8, height = 6, dpi = 300)
+      ggsave(file, plot = HexbinPlotObj(), width = 8, height = 6, dpi = 300)
     }
   )
 
@@ -990,7 +1054,7 @@ server <- function(input, output, session) {
 
 
   observe({
-    req(datasetInput2(),input$covariate3 )
+    req(datasetInput2(),input$covariate4 )
     council_names <- unique(datasetInput2()$Council_area)
     updateSelectInput(session, "council_map", choices = council_names,
                       selected = "Glasgow City")
@@ -999,8 +1063,8 @@ server <- function(input, output, session) {
 
   # Variable description for reference
   output$varDescription3 <- renderUI({
-    req(input$covariate3)
-    var_info <- var_names_combined %>% filter(Column == input$covariate3)
+    req(input$covariate4)
+    var_info <- var_names_combined %>% filter(Column == input$covariate4)
 
     tagList(
       tags$p(tags$strong("Variable:"), var_info$label),
@@ -1011,7 +1075,7 @@ server <- function(input, output, session) {
 
 
   variableLabel1 <- reactive({
-    var_names_combined$label[var_names_combined$Column == input$covariate3]
+    var_names_combined$label[var_names_combined$Column == input$covariate4]
   })
 
   observeEvent(input$show_all_scotland, {
@@ -1031,7 +1095,7 @@ server <- function(input, output, session) {
 
   map_data <- reactive({
 
-    req(datasetInput2(), input$covariate3)
+    req(datasetInput2(), input$covariate4)
 
     map_dataset <- Scotland_local_auth2016 %>%
       left_join(datasetInput2(), by = "Data_Zone")
@@ -1052,9 +1116,9 @@ server <- function(input, output, session) {
 
   output$my_map <- renderLeaflet({
 
-    req(map_data(), input$covariate3, input$colors)
+    req(map_data(), input$covariate4, input$colors)
 
-    pal <- colorNumeric(input$colors, map_data()[[input$covariate3]])
+    pal <- colorNumeric(input$colors, map_data()[[input$covariate4]])
 
     leaflet(map_data()) %>%
       addProviderTiles("Esri.WorldGrayCanvas",options = tileOptions(minZoom = 6, maxZoom = 16)) %>%
@@ -1063,7 +1127,7 @@ server <- function(input, output, session) {
       addLayersControl(baseGroups = c("Grey Canvas","Toner","Toner lite", "CartoDB")) %>%
       addPolygons(
         smoothFactor = 0.2,
-        fillColor = ~pal(get(input$covariate3)),
+        fillColor = ~pal(get(input$covariate4)),
         fillOpacity = 0.8,
         color = "lightblue",
         weight = 1.5,
@@ -1074,17 +1138,17 @@ server <- function(input, output, session) {
           textOnly = TRUE, textsize = "15px", direction = "auto"
         )
       ) %>%
-      addLegend("bottomright", pal = pal, values = ~get(input$covariate3),
+      addLegend("bottomright", pal = pal, values = ~get(input$covariate4),
                 title = variableLabel1(), opacity = 0.75)
   })
 
 
   output$ttest_output <- renderDT({
 
-    req(input$covariate3)
+    req(input$covariate4)
 
-    values_2016 <- data_2016[[input$covariate3]]
-    values_2020 <- data_2020[[input$covariate3]]
+    values_2016 <- data_2016[[input$covariate4]]
+    values_2020 <- data_2020[[input$covariate4]]
 
     results <- tidy(t.test(values_2016,values_2020,var.equal = FALSE))
 
