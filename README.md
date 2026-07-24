@@ -1,16 +1,17 @@
 # Scottish Index of Multiple Deprivation (SIMD) Shiny App - Exploring SIMD
 
-An interactive RShiny application for exploring the Scottish Index of Multiple Deprivation (SIMD), originally developed in 2017 during a Q-Step internship at the University of Glasgow under the supervision of Dr. Brian Fogarty and Dr. Niccole Pamphilis. It has been substantially updated in 2026 with a new dataset, redesigned interface and expanded functionality.
+An interactive RShiny application for exploring the Scottish Index of Multiple Deprivation (SIMD), originally developed in 2017 during a Q-Step internship at the University of Glasgow under the supervision of Dr. Brian Fogarty and Dr. Niccole Pamphilis. It has been substantially updated in 2026 with a new dataset, redesigned interface and expanded functionality (more details below).
 
+Check out the app [here](https://cchuecadelcerro.shinyapps.io/SIMD-ShinyApp/)
 ---
 
 ## Background
 
 This was one of my first RShiny projects, originally built in 2017 as part of the Q-Step Programme at the School of Social and Political Sciences of University of Glasgow, a national initiative promoting quantitative methods training in the social sciences. The app was used by Q-step colleagues in public lectures to help general audiences understand statistical concepts and data visualisation through a real, policy-relevant dataset. 
+
 It was also to guide the public through exploring deprivation patterns across Scotland interactively and to inspire younger generations in Glasgow City to study quantitative methods in the social sciences.
 
-The Scottish Index of Multiple Deprivation (SIMD) is the Scottish Government's official tool for identifying areas of concentrated deprivation across the country, combining multiple domains including income, employment, 
-health, education, housing, crime, and geographic access. Full details on the dataset are available from the [Scottish Government](https://www2.gov.scot/Topics/Statistics/SIMD).
+The Scottish Index of Multiple Deprivation (SIMD) is the Scottish Government's official tool for identifying areas of concentrated deprivation across the country, combining multiple domains including income, employment, health, education, housing, crime, and geographic access. Full details on the dataset are available from the [Scottish Government](https://www2.gov.scot/Topics/Statistics/SIMD).
 
 ---
 
@@ -21,6 +22,9 @@ health, education, housing, crime, and geographic access. Full details on the da
 - **Redesigned interface** using the Bootswatch "Minty" theme for a more polished, modern user experience
 - **Improved variable descriptions** for clearer, more accessible interpretation of SIMD domains and indicators
 - **Expanded visualisation options** for both single-variable and two-variable comparisons
+- **Downloadable outputs** for for original data sets, summary tables and any plot on the app
+- **Interactive hover tooltips** for the scatterplot and hexin views allowing to identify daa zones and council areas as you explore
+- **Statistical indicator comparisons** on the map tab with a Welch's two-sample t-tests for the selected indicator comparing 2016 and 2020 datasets
 
 ---
 
@@ -34,18 +38,22 @@ Summary statistics and customisable visualisation of individual SIMD variables, 
 - Histogram
 - Density plot
 - Boxplot
+- Smmary statistics table for selected indicator
+- Optional data zones ranks for selected indicator
 
 ### 🔀 Two Variable Comparison
 Explore relationships between pairs of SIMD variables through:
-- Scatterplot
-- Hexbin chart
-- Optional (simple) linear regression model
 - Geographic subsetting by local authority area (e.g. Greater Glasgow, Stirling, Edinburgh, Aberdeen, etc.)
+- Scatterplot
+- Optional (simple) linear regression model for scatterplot
+- Hexbin (density) chart, including third color by variable
+- Hover tooltip on both views with information regarding data zone and Council area as you explore the data
 
 ### 🗺️ Interactive Map
 - Scotland-wide choropleth map using Local Authority District boundaries (2016 / 2020)
 - Dedicated high-resolution Glasgow City Council map, built from a custom GeoJSON file created in QGIS
-- User-adjustable variable selection, colour schemes, and cartographic styling
+- User-adjustable variable selection, colour schemes, and cartographic styling (map layers)
+- Welch's two-sample t-tests for the selected indicator comparing 2016 and 2020 datasets
 
 > **Note on map density:** Some rural areas with low population density may appear visually sparse on the Scotland-wide map at default zoom. Zoom in for more clearly defined data zones.
 
@@ -131,6 +139,8 @@ As part of the 2026 update, the codebase underwent a full audit and refactor:
 - **Code deduplication** — refactored repeated dataset-selection and variable-update logic into shared helper functions, reducing the codebase by roughly 30% while preserving all functionality
 - **Deprecated package migration** — replaced `rgdal` (retired from CRAN, October 2023) with `sf` throughout
 - **Github Actions** — created various actions for syntax and lint checking and UI/Server consistency, improving workflow
+- **Interactive hover tooltips** — created on scatterplots and hexbin charts to provide additional information regarding data zone and council area as users explore the data
+- **Statistical indicator comparison** — comparisons between the SIMD 2016 and SIMD 2020 datasets applying a Welch's two-sample t-tests for the selected indicator on the map tab
 
 ---
 
