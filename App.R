@@ -31,6 +31,8 @@ library(ggpubr)
 library(shinydashboard)
 library(leaflet)
 library(rmapshaper) # improve leaflet rendering performance
+library(mapview)    # to export map as jpeg
+library(webshot)    # to export as html
 
 
 ### ============================================================
@@ -652,15 +654,19 @@ ui <- page_fluid(
           selectInput("council_map", "Select Council area:", choices = NULL)
         ),
         selectInput("colors", "Color Scheme", rownames(subset(
-          brewer.pal.info, category %in% c("seq", "div")
-        ))),
+          brewer.pal.info, category %in% c("seq")
+        )), selected ="BuPu"),
         h4("Variable Description"),
         uiOutput("varDescription3"),
       ),
       column(8, leafletOutput(
-        "my_map", width = "100%", height = 600
-             )),
-
+        "my_map", width = "100%", height = 600),
+      br(),
+      fluidRow(
+        column(6, downloadButton("download_map_jpeg", "Download map (JPEG)")),
+        column(6, downloadButton("download_map_html", "Download map (HTML)"))
+        ),
+      ),
       h4("Independent samples t-test"),
       p("Comparing data zone values for the selected Council area and SIMD indicator"),
       DTOutput("ttest_output")
@@ -770,6 +776,7 @@ server <- function(input, output, session) {
     update_var_choices(session, datasetInput(), "selected_var")
   })
 
+  # Number at end -> selects variable (based on its order in df)
   observeEvent(input$dataset1, {
     req(datasetInput1())
     update_var_choices(session, datasetInput1(), "covariate1", 1)
@@ -779,7 +786,7 @@ server <- function(input, output, session) {
 
   observeEvent(input$dataset2, {
     req(datasetInput2())
-    update_var_choices(session, datasetInput2(), "covariate4")
+    update_var_choices(session, datasetInput2(), "covariate4",3)
   })
 
 
@@ -1214,26 +1221,30 @@ server <- function(input, output, session) {
 
   })
 
-
-  output$my_map <- renderLeaflet({
+  my_map_obj <- reactive({
 
     req(map_data(), input$covariate4, input$colors)
+
+    values <- map_data()[[input$covariate4]]
 
     pal <- colorNumeric(input$colors, map_data()[[input$covariate4]])
 
     leaflet(map_data()) %>%
-      addProviderTiles("Esri.WorldGrayCanvas",options = tileOptions(minZoom = 6, maxZoom = 16)) %>%
-      addProviderTiles("Esri.WorldImagery", group = "Toner Lite") %>%
+      addProviderTiles("Esri.WorldImagery", options = tileOptions(minZoom = 6, maxZoom = 16),
+                       group = "World Imagery") %>%
+      addProviderTiles("Esri.WorldGrayCanvas", group = "Grey Canvas") %>%
+      addProviderTiles("Stadia.StamenTonerLite", group = "Toner Lite") %>%
       addProviderTiles("CartoDB.Positron", group = "CartoDB") %>%
-      addLayersControl(baseGroups = c("Grey Canvas","Toner","Toner lite", "CartoDB")) %>%
+      addLayersControl(baseGroups = c("World Imagery", "Grey Canvas",
+                                      "Toner Lite", "CartoDB")) %>%
       addPolygons(
         smoothFactor = 0.2,
         fillColor = ~pal(get(input$covariate4)),
-        fillOpacity = 0.8,
+        fillOpacity = 1,
         color = "lightblue",
         weight = 1.5,
-        highlight = highlightOptions(weight = 5, color = "#666", fillOpacity = 0, bringToFront = FALSE),
-        label = ~Data_Zone,
+        highlight = highlightOptions(weight = 5, color = "#666", fillOpacity = 0.35, bringToFront = FALSE),
+        label = ~paste0(Data_Zone, ", ", variableLabel1(), ": ", scales::comma(get(input$covariate4))),
         labelOptions = labelOptions(
           style = list("font-weight" = "normal", padding = "3px 8px"),
           textOnly = TRUE, textsize = "15px", direction = "auto"
@@ -1242,6 +1253,35 @@ server <- function(input, output, session) {
       addLegend("bottomright", pal = pal, values = ~get(input$covariate4),
                 title = variableLabel1(), opacity = 0.75)
   })
+
+  output$my_map <- renderLeaflet({ my_map_obj()})
+
+
+  ## ---- Map exports (HTML and JPEG, separate buttons) ----
+
+  output$download_map_html <- downloadHandler(
+    filename = function() {
+      dataset_label <- if (input$dataset2 == "data_2020") "SIMD_2020" else "SIMD_2016"
+      paste0("map_", input$covariate4, "_", dataset_label, ".html")
+    },
+    content = function(file) {
+      saveWidget(my_map_obj(), file)
+    }
+  )
+
+  output$download_map_jpeg <- downloadHandler(
+    filename = function() {
+      dataset_label <- if (input$dataset2 == "data_2020") "SIMD_2020" else "SIMD_2016"
+      paste0("map_", input$covariate4, "_", dataset_label,".jpeg")
+    },
+
+    content = function(file) {
+
+      saveWidget(my_map_obj(), "temp.html", selfcontained = FALSE)
+      webshot("temp.html", file ,
+              cliprect = "viewport")
+    }
+  )
 
 
   output$ttest_output <- renderDT({
@@ -1266,7 +1306,6 @@ server <- function(input, output, session) {
       )
     )%>%
       formatRound(columns = which(sapply(results, is.numeric)),digits = 4)
-
 
   })
 
