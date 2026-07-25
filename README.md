@@ -1,15 +1,12 @@
 # Scottish Index of Multiple Deprivation (SIMD) Shiny App - Exploring SIMD
 
-An interactive RShiny application for exploring the Scottish Index of Multiple Deprivation (SIMD), originally developed in 2017 during a Q-Step internship at the University of Glasgow under the supervision of Dr. Brian Fogarty and Dr. Niccole Pamphilis. It has been substantially updated in 2026 with a new dataset, redesigned interface and expanded functionality (more details below).
+An interactive RShiny application for exploring the Scottish Index of Multiple Deprivation (SIMD), originally developed in 2017 during a Q-Step internship at the University of Glasgow under the supervision of Dr. Brian Fogarty and Dr. Niccole Pamphilis. It has been substantially updated in 2026 with a new dataset, redesigned interface and expanded functionality.
 
-Check out the app [here](https://cchuecadelcerro.shinyapps.io/SIMD-ShinyApp/)
 ---
 
 ## Background
 
-This was one of my first RShiny projects, originally built in 2017 as part of the Q-Step Programme at the School of Social and Political Sciences of University of Glasgow, a national initiative promoting quantitative methods training in the social sciences. The app was used by Q-step colleagues in public lectures to help general audiences understand statistical concepts and data visualisation through a real, policy-relevant dataset. 
-
-It was also to guide the public through exploring deprivation patterns across Scotland interactively and to inspire younger generations in Glasgow City to study quantitative methods in the social sciences.
+This was one of my first RShiny projects, originally built in 2017 as part of the Q-Step Programme at the School of Social and Political Sciences of University of Glasgow, a national initiative promoting quantitative methods training in the social sciences. The app was used by Q-step colleagues in public lectures to help general audiences understand statistical concepts and data visualisation through a real, policy-relevant dataset. It was also to guide the public through exploring deprivation patterns across Scotland interactively and to inspire younger generations in Glasgow City to study quantitative methods in the social sciences.
 
 The Scottish Index of Multiple Deprivation (SIMD) is the Scottish Government's official tool for identifying areas of concentrated deprivation across the country, combining multiple domains including income, employment, health, education, housing, crime, and geographic access. Full details on the dataset are available from the [Scottish Government](https://www2.gov.scot/Topics/Statistics/SIMD).
 
@@ -25,7 +22,7 @@ The Scottish Index of Multiple Deprivation (SIMD) is the Scottish Government's o
 - **Downloadable outputs** for for original data sets, summary tables and any plot on the app
 - **Interactive hover tooltips** for the scatterplot and hexin views allowing to identify daa zones and council areas as you explore
 - **Statistical indicator comparisons** on the map tab with a Welch's two-sample t-tests for the selected indicator comparing 2016 and 2020 datasets
-
+- **Google Analytics (GA4) integration** to understand usage patterns and guide future development, with a transparent in-app privacy notice and privacy-conscious configuration (see Analytics & Privacy section below)
 ---
 
 ## Features
@@ -139,9 +136,7 @@ As part of the 2026 update, the codebase underwent a full audit and refactor:
 - **Code deduplication** — refactored repeated dataset-selection and variable-update logic into shared helper functions, reducing the codebase by roughly 30% while preserving all functionality
 - **Deprecated package migration** — replaced `rgdal` (retired from CRAN, October 2023) with `sf` throughout
 - **Github Actions** — created various actions for syntax and lint checking and UI/Server consistency, improving workflow
-- **Interactive hover tooltips** — created on scatterplots and hexbin charts to provide additional information regarding data zone and council area as users explore the data
-- **Statistical indicator comparison** — comparisons between the SIMD 2016 and SIMD 2020 datasets applying a Welch's two-sample t-tests for the selected indicator on the map tab
-
+- **Google Analytics (GA4) integration** to understand usage patterns and guide future development (see more info Data Analytics & Privacy section)
 ---
 
 ## How to Run Locally
@@ -161,6 +156,32 @@ shiny::runApp()
 ## Acknowledgements
 
 Originally developed during a Q-Step Programme internship at the School of Social and Political Sciences of University of Glasgow (2017) under the supervision of Dr. Brian Fogarty and Dr. Niccole Pamphilis. The Q-Step Programme is a national initiative promoting quantitative social science training, supported by the Nuffield Foundation, Economic and Social Research Council (ESRC) and the Higher Education Funding Council for England (HEFCE).
+
+---
+
+## Data Analytics & Privacy
+
+This app uses Google Analytics (GA4) to understand usage patterns such as which features are explored, which datasets are downloaded and approximate visitor geography at country-level only. This data informs 
+ongoing development priorities and is periodically summarised for reporting purposes only. Data collection practices described here apply equally to all visitors, in line with UK GDPR and EU GDPR principles. For more information see UK's data protection [here](https://www.gov.uk/data-protection) and the EU's GDPR full text [here](https://eur-lex.europa.eu/eli/reg/2016/679/oj/eng).
+
+**What is collected:**
+- Anonymous page/tab views
+- Feature interaction events (e.g. dataset or table downloads)
+- Approximate country-level location (derived from network/browser data, not precise location or IP address)
+
+**What is NOT collected:**
+- Any personally identifiable information (name, email, etc.)
+- Precise location or IP addresses
+- Cross-device or advertising-related tracking (Google Signals is disabled for this property)
+
+**Data retention:** 
+- The analytics data mentioned is retained for a maximum of 2 months before automatic deletion.
+
+For full detail on how Google collects and processes analytics data, see [Google's Privacy Policy](https://policies.google.com/privacy).
+
+*This app does not use cookies for any purpose beyond the anonymous analytics described above and does not sell or share data with third parties.*
+
+> **Note:** This statement reflects good-faith transparency about data practices for a personal academic project. It does not constitute formal legal advice or a guarantee of regulatory compliance.
 
 ---
 
