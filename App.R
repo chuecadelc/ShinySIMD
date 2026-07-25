@@ -13,8 +13,7 @@ library(ineq)       # for Gini coefficient
 library(broom)      # t-test
 library(plotly)     # enbles text hovering feature
 library(cowplot)    # extract plot legend as object
-library(hexbin)    # MUST be installed even if you have tidyverse loaded -
-# otherwise no geom_hex()
+library(hexbin)    # MUST be installed even if you have tidyverse loaded - otherwise no geom_hex()
 
 # data imports
 library(readxl)
@@ -250,11 +249,21 @@ ui <- page_fluid(
         "window.dataLayer = window.dataLayer || [];
          function gtag(){dataLayer.push(arguments);}
          gtag('js', new Date());
-         gtag('config', 'G-XXXXXXXXXX');"
+         gtag('config', 'G-XXXXXXXXXX', { debug_mode: true });"
         )
       ),
-    # custom analytics to track
-    tags$script(src = "analytics.js")
+
+    tags$script(HTML("
+        Shiny.addCustomMessageHandler('trackPageview', function(tabName) {
+          gtag('event', 'page_view', { page_title: tabName });
+        });
+           Shiny.addCustomMessageHandler('ga_event', function(eventData) {
+          gtag('event', eventData.event, {
+          dataset: eventData.dataset,
+          output_type: eventData.output_type || null
+          });
+        });
+      "))
   ),
 
 
@@ -669,6 +678,7 @@ ui <- page_fluid(
       ),
       h4("Independent samples t-test"),
       p("Comparing data zone values for the selected Council area and SIMD indicator"),
+      downloadButton("download_ttest", "Download t-test table (CSV)"),
       DTOutput("ttest_output")
         )
       )
@@ -720,6 +730,50 @@ server <- function(input, output, session) {
       event = "download_ranked_table",
       dataset = dataset_label,
       output_type = "ranked_table"
+    ))
+  })
+
+  ## ---- Google Analytics: Plot & Map Export Tracking ----
+
+  observeEvent(input$download_hist, {
+    session$sendCustomMessage("ga_event", list(
+      event = "export_plot", dataset = input$dataset, output_type = "histogram"
+    ))
+  })
+
+  observeEvent(input$download_density, {
+    session$sendCustomMessage("ga_event", list(
+      event = "export_plot", dataset = input$dataset, output_type = "density_plot"
+    ))
+  })
+
+  observeEvent(input$download_boxplot, {
+    session$sendCustomMessage("ga_event", list(
+      event = "export_plot", dataset = input$dataset, output_type = "boxplot"
+    ))
+  })
+
+  observeEvent(input$download_scatter, {
+    session$sendCustomMessage("ga_event", list(
+      event = "export_plot", dataset = input$dataset1, output_type = "scatterplot"
+    ))
+  })
+
+  observeEvent(input$download_hexbin, {
+    session$sendCustomMessage("ga_event", list(
+      event = "export_plot", dataset = input$dataset1, output_type = "hexbin"
+    ))
+  })
+
+  observeEvent(input$download_map_html, {
+    session$sendCustomMessage("ga_event", list(
+      event = "export_map", dataset = input$dataset2, output_type = "html"
+    ))
+  })
+
+  observeEvent(input$download_map_jpeg, {
+    session$sendCustomMessage("ga_event", list(
+      event = "export_map", dataset = input$dataset2, output_type = "jpeg"
     ))
   })
 
@@ -833,12 +887,12 @@ server <- function(input, output, session) {
 
   ## ---- Summary statistics ----
 
-  output$summaryStats <- DT::renderDataTable({
-    req(datasetInput(), input$selected_var)
+  summaryStatsData <- reactive({
+    req(datasetInput(), input$selected_var, input$dataset)
 
     dataset_label <- if (input$dataset == "data_2020") "SIMD 2020" else "SIMD 2016"
 
-    table_df <- datasetInput() %>%
+    datasetInput() %>%
       dplyr::summarise(
         Dataset = dataset_label,
         Mean = round(mean(.data[[input$selected_var]], na.rm = TRUE), 3),
@@ -846,9 +900,14 @@ server <- function(input, output, session) {
         `Std. Dev` = round(sd(.data[[input$selected_var]], na.rm = TRUE), 3),
         `Gini coefficient` = round(ineq::Gini(.data[[input$selected_var]]), 3)
       )
+  })
+
+  output$summaryStats <- DT::renderDataTable({
+    req(summaryStatsData())
 
     DT::datatable(
-      table_df, selection = "none", rownames = FALSE,
+      summaryStatsData(),
+      selection = "none", rownames = FALSE,
       class = "table table-primary",
       options = list(
         dom = "t", ordering = FALSE,
@@ -862,7 +921,6 @@ server <- function(input, output, session) {
   })
 
   ## ---- Download table stats ----
-
 
   output$download_summary <- downloadHandler(
     filename = function() {
@@ -1284,17 +1342,21 @@ server <- function(input, output, session) {
   )
 
 
-  output$ttest_output <- renderDT({
+  ##  --- Welch T-Test of Independence ---
 
+  ttestData <- reactive({
     req(input$covariate4)
-
     values_2016 <- data_2016[[input$covariate4]]
     values_2020 <- data_2020[[input$covariate4]]
+    broom::tidy(t.test(values_2016, values_2020, var.equal = FALSE))
+  })
 
-    results <- tidy(t.test(values_2016,values_2020,var.equal = FALSE))
+  output$ttest_output <- renderDT({
+    req(ttestData())
 
     DT::datatable(
-      results, selection = "none", rownames = FALSE,
+      ttestData(),
+      selection = "none", rownames = FALSE,
       class = "table table-primary",
       options = list(
         dom = "t", ordering = FALSE,
@@ -1304,11 +1366,17 @@ server <- function(input, output, session) {
           "}"
         )
       )
-    )%>%
-      formatRound(columns = which(sapply(results, is.numeric)),digits = 4)
-
+    ) %>% formatRound(columns = which(sapply(ttestData(), is.numeric)), digits = 4)
   })
 
+  ## ---- Download t-test output ----
+
+  output$download_ttest <- downloadHandler(
+    filename = function() paste0("Welch_t-test_", input$covariate4, "_2016_vs_2020.csv"),
+    content = function(file) {
+      write.csv(ttestData(), file, row.names = FALSE)
+    }
+  )
  }
 
 # Run the application and enjoy!
