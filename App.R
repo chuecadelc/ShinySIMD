@@ -13,7 +13,7 @@ library(ineq)       # for Gini coefficient
 library(broom)      # t-test
 library(plotly)     # enbles text hovering feature
 library(cowplot)    # extract plot legend as object
-#library(hexbin)    # MUST be installed even if you have tidyverse loaded -
+library(hexbin)    # MUST be installed even if you have tidyverse loaded -
 # otherwise no geom_hex()
 
 # data imports
@@ -170,16 +170,16 @@ var_names_combined <- bind_rows(data_vars, data_vars1) %>%
 
 ## ---- Geographic data (Scotland-wide, 2016 boundaries) ----
 
-Scotland_local_auth2016 <- read_sf("SG_SIMD_2016_1.geojson")
-
-Scotland_local_auth2016 <- st_transform(Scotland_local_auth2016, crs = 4326)
-
-Scotland_local_auth2016 <- Scotland_local_auth2016 %>%
-  dplyr::select(Data_Zone = DataZone, LAName, Shape_Leng, Shape_Area) %>%
-  ms_simplify(keep = 0.1, keep_shapes = TRUE)
-
-saveRDS(Scotland_local_auth2016,
-        "Scotland_local_auth2016.rds")
+# Scotland_local_auth2016 <- read_sf("SG_SIMD_2016_1.geojson")
+#
+# Scotland_local_auth2016 <- st_transform(Scotland_local_auth2016, crs = 4326)
+#
+# Scotland_local_auth2016 <- Scotland_local_auth2016 %>%
+#   dplyr::select(Data_Zone = DataZone, LAName, Shape_Leng, Shape_Area) %>%
+#   ms_simplify(keep = 0.1, keep_shapes = TRUE)
+#
+# saveRDS(Scotland_local_auth2016,
+#         "Scotland_local_auth2016.rds")
 
 Scotland_local_auth2016_revised <- readRDS(
   "Scotland_local_auth2016.rds"
@@ -220,6 +220,7 @@ ui <- page_fluid(
     success = "#009E73"
   ),
 
+
   ##
   tags$style(
     HTML(
@@ -234,6 +235,24 @@ ui <- page_fluid(
   }
   "
     )
+  ),
+
+  # ---- Google Analytics 4 ----
+
+  tags$head(
+    tags$script(async = NA,
+                src = "https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"),
+
+    tags$script(
+      HTML(
+        "window.dataLayer = window.dataLayer || [];
+         function gtag(){dataLayer.push(arguments);}
+         gtag('js', new Date());
+         gtag('config', 'G-XXXXXXXXXX');"
+        )
+      ),
+    # custom analytics to track
+    tags$script(src = "analytics.js")
   ),
 
 
@@ -288,43 +307,48 @@ ui <- page_fluid(
         tags$div(style = "margin-bottom: 20px;"),
 
 
-        layout_column_wrap(
-          width = 1 / 2,
+        layout_column_wrap(width = 1 / 2,
 
           card(card_header(h3("Features")), card_body(
+
             tags$ul(
               tags$li(
                 tags$strong("Summary statistics and indicator visualisations: "),
                 "Explore individual SIMD indicators through customisable histogram,
-                density plot and boxplot (compares both datasets).
-                View descriptive statistics (mean, median, standard deviation and
-                Gini coefficient) access variable descriptions and customise plots."
+                  density plot and boxplot (compares both datasets).
+                  View descriptive statistics (mean, median, standard deviation and
+                  Gini coefficient) access variable descriptions and customise plots."
               ),
 
+              tags$li(
+                tags$strong("Ranked data zones: "),
+                "Identify the highest- or lowest-scoring data zones for any indicator,
+                  with an adjustable number of areas shown and downloadable results."
+              ),
               tags$li(
                 tags$strong("Exploring relationships between indicators: "),
                 "Compare two SIMD indicators using an interactive scatterplot and hexbin.
-                Calculate variable correlations and simple linear regression.
-                Filter observations by Council too."
+                   Hover over individual points to see the corresponding council area, data
+                   zone, and population. Calculate variable correlations and simple linear
+                   regression. Filter observations by Council too."
               ),
-
               tags$li(
                 tags$strong("Interactive deprivation mapping: "),
                 "Explore deprivation patterns across Scottish data zones using an
-               interactive map. Select between dataset, Council areas and indicators
-               while viewing corresponding descriptions."
+                   interactive map. Select between datasets, Council areas and indicators
+                   while viewing corresponding descriptions.
+                   Also, compare a single indicator across releases and a statistical test to
+                   assess whether the change is significant."
               ),
 
               tags$li(
                 tags$strong("Data and visualisation exports: "),
-                "Download the underlying SIMD datasets and summary outputs used within
-                 the application. Export visualisations generated during analysis."
-              )
-
-
-            )
+                "Download the underlying SIMD datasets, summary outputs, and ranked
+                  tables used within the application. Export visualisations generated
+                  during analysis."
+                 )
+               )
           )),
-
 
           card(card_header(h3(
             "What's new in this update"
@@ -337,26 +361,36 @@ ui <- page_fluid(
               ),
 
               tags$li(
-                tags$strong("SIMD 2020 integration: "),
-                "The 2020 dataset has been added alongside the original 2016 release,
-                 enabling direct comparison between the two most recent SIMD publications."
-              ),
-
-              tags$li(
-                tags$strong("Data exports: "),
-                "Dataset, summary outputs and visualisations available for download."
+                tags$strong("SIMD 2020 integration & data exports: "),
+                "The 2020 dataset has been added, enabling comparison between the two releases.
+                 Dataset, summary outputs and visualisations available for download.
+                 New dropdown table identifying the highest- or lowest-scoring areas
+                 for any indicator."
               ),
 
               tags$li(
                 tags$strong("Expanded visualisations: "),
                 "Additional functionality supports both single-variable exploration
-                 and comparisons between multiple indicators"
+                 and comparisons between multiple indicators."
+              ),
+
+              tags$li(
+                tags$strong("Interactive hover tooltips: "),
+                "Scatterplot and hexbin comparisons now show area and population
+                  details on hover."
               ),
               tags$li(
                 tags$strong("Scotland-wide interactive mapping: "),
                 "The map has been expanded from Glasgow City Council to cover Scotland
-                 using Local Authority boundaries."
+                 using Local Authority boundaries. Direct 2016 vs 2020 comparison for a chosen council
+                 area and indicator, including a statistical significance test."
               ),
+              tags$li(
+                tags$strong("Usage analytics: "),
+                "Anonymous, privacy-conscious usage analytics have been added to help
+                 guide future development -- see the Analytics & Privacy section below
+                 for full details."
+              )
 
             )
           ))
@@ -392,14 +426,46 @@ ui <- page_fluid(
         ),
         tags$div(style = "margin-bottom: 20px;"),
 
+        br(), br(),
+        hr(),
+        h4("Data Analytics & Privacy"),
+        p("This app uses Google Analytics (GA4) to understand usage patterns
+          and guide future development. For full detail on how Google collects and processes analytics
+          data, see ",
+          a("Google's Privacy Policy",
+            href = "https://policies.google.com/privacy", target = "_blank"),
+          "."),
+        tags$ul(
+          tags$li(strong("What is collected: "), "anonymous page/tab views,
+                feature interaction events (e.g. which datasets or tables
+                are downloaded), and approximate country-level location
+                derived from network data -- not your precise location
+                or IP address."),
+          tags$li(strong("What is NOT collected: "), "any personally
+                identifiable information (name, email, etc.), precise
+                location, or IP addresses. Cross-device and
+                advertising-related tracking (Google Signals) is disabled
+                for this property."),
+          tags$li(strong("Applicability: "), "These practices apply equally to
+                all visitors and are in line with UK GDPR and EU GDPR
+                principles."),
+          tags$li(strong("Data retention: "), "The above analytics data is retained
+                for a maximum of 2 months before automatic deletion.")
+        ),
+        p(),
+        p(em("This statement reflects good-faith transparency about data
+        practices for a personal academic project and does not constitute
+        formal legal advice."), style = "font-size: 13px; color: #666;"),
+        br(),
+
         div(
           style = "text-align:center;
         margin-top:50px;
         ",
 
-          img(src = "QStep_logo", height = "90px", ),
+          img(src = "Q_Step_logo.png", height = "90px", ),
 
-          img(src = "UofGlasgow_logo", height = "90px")
+          img(src = "UofG_logo.jpg", height = "90px")
         )
         ,
 
@@ -615,6 +681,41 @@ server <- function(input, output, session) {
   # observe(session$setCurrentTheme(
   #   if (isTRUE(input$dark_mode)) dark else light
   # ))
+
+  ## ---- Google Analytics 4 Event Tracking ----
+  ## Sends anonymous usage events to GA4
+  ## No personally identifiable information is collected
+  ## Only tab navigation and feature usage (e.g. downloads).
+
+  observeEvent(input$main_navbar, {
+    session$sendCustomMessage("trackPageview", input$main_navbar)
+  })
+
+  observeEvent(input$download_data_2016, {
+    session$sendCustomMessage("ga_event", list(event = "download_dataset", dataset = "SIMD_2016"))
+  })
+
+  observeEvent(input$download_data_2020, {
+    session$sendCustomMessage("ga_event", list(event = "download_dataset", dataset = "SIMD_2020"))
+  })
+
+  observeEvent(input$download_summary, {
+    dataset_label <- if (input$dataset == "data_2020") "SIMD_2020" else "SIMD_2016"
+    session$sendCustomMessage("ga_event", list(
+      event = "download_summary_stats",
+      dataset = dataset_label,
+      output_type = "summary_statistics"
+    ))
+  })
+
+  observeEvent(input$download_ranked, {
+    dataset_label <- if (input$dataset == "data_2020") "SIMD_2020" else "SIMD_2016"
+    session$sendCustomMessage("ga_event", list(
+      event = "download_ranked_table",
+      dataset = dataset_label,
+      output_type = "ranked_table"
+    ))
+  })
 
   ## ---- Dataset selection helper ----
   # Replaces three near-identical if/else blocks with one shared function
@@ -1097,7 +1198,7 @@ server <- function(input, output, session) {
 
     req(datasetInput2(), input$covariate4)
 
-    map_dataset <- Scotland_local_auth2016 %>%
+    map_dataset <- Scotland_local_auth2016_revised %>%
       left_join(datasetInput2(), by = "Data_Zone")
 
     if (!input$show_all_scotland) {
@@ -1169,7 +1270,7 @@ server <- function(input, output, session) {
 
   })
 
-}
+ }
 
 # Run the application and enjoy!
 shinyApp(ui = ui, server = server)
